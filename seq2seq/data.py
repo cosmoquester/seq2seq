@@ -1,14 +1,15 @@
 import tensorflow as tf
+import tensorflow_text as text
 
 
-def get_dataset(dataset_file_path: str):
+def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer):
     """
     Read dataset file and construct tensorflow dataset
 
-    :param dataset_file_path: dataset file path.
+    :param dataset_file_path: tsv dataset file path. formed (sentence1, sentence2) without header
     """
-    # Replace the context of this function
-    dataset_x = tf.data.Dataset.range(10000)
-    dataset_y = tf.data.Dataset.from_tensor_slices([0, 1] * 5000)
-
-    return tf.data.Dataset.zip((dataset_x, dataset_y))
+    tokenize_fn = tf.function(lambda text, text2: (tokenizer.tokenize(text), tokenizer.tokenize(text2)))
+    dataset = tf.data.experimental.CsvDataset(dataset_file_path, [tf.string, tf.string], field_delim="\t").map(
+        tokenize_fn
+    )
+    return dataset
