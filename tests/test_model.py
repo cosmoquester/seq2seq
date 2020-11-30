@@ -1,12 +1,23 @@
 import pytest
 import tensorflow as tf
 
-from seq2seq.model import SampleModel
+from seq2seq.model import BiLSTMSeq2Seq
 
 
 def test_model():
-    model = SampleModel(15)
-    model(tf.constant([[10, 11, 12]]))
+    batch_size = 4
+    encoder_sequence = 12
+    decoder_sequence = 16
+    vocab_size = 128
+    hidden_dim = 64
+
+    model = BiLSTMSeq2Seq(vocab_size=vocab_size, hidden_dim=hidden_dim)
+    output = model(
+        tf.random.uniform((batch_size, encoder_sequence), maxval=vocab_size),
+        tf.random.uniform((batch_size, decoder_sequence), maxval=vocab_size),
+    )
+
+    tf.debugging.assert_equal(tf.shape(output), (batch_size, vocab_size))
 
     with pytest.raises(Exception):
         model(tf.constant([[30]]))
