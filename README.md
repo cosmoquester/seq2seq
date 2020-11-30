@@ -1,9 +1,5 @@
-# Tensorflow2 Project Setup
+# seq2seq
 
-- This repository is template for my tensorflow keras project
+- This is seq2seq model structures with Tensorflow 2
 
-## Things to be changed
-
-- "README.md" file contents
-- "setup.py" file contents
-- "sample_package" directory name
+- "seq2seq" directory name

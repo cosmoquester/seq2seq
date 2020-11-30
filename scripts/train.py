@@ -7,9 +7,9 @@ import sys
 
 import tensorflow as tf
 
-from sample_package.data import get_dataset
-from sample_package.model import SampleModel
-from sample_package.utils import get_logger, learning_rate_scheduler
+from seq2seq.data import get_dataset
+from seq2seq.model import SampleModel
+from seq2seq.utils import get_logger, learning_rate_scheduler
 
 # fmt: off
 parser = argparse.ArgumentParser()
