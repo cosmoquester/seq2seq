@@ -6,14 +6,15 @@ import shutil
 import sys
 
 import tensorflow as tf
+import tensorflow_text as text
 
 from seq2seq.data import get_dataset
-from seq2seq.model import SampleModel
+from seq2seq.model import BiLSTMSeq2Seq
 from seq2seq.utils import get_logger, learning_rate_scheduler
 
 # fmt: off
 parser = argparse.ArgumentParser()
-parser.add_argument("--model-config-path", type=str, required=True, help="model config file")
+parser.add_argument("--model-config-path", type=str, default="resources/configs/bi-lstm.json", help="model config file")
 parser.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
 parser.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
 parser.add_argument("--shuffle-buffer-size", type=int, default=5000)
@@ -27,6 +28,7 @@ parser.add_argument("--dev-batch-size", type=int, default=2)
 parser.add_argument("--num-dev-dataset", type=int, default=2)
 parser.add_argument("--tensorboard-update-freq", type=int, default=1)
 parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
+parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
 # fmt: on
 
 if __name__ == "__main__":
@@ -52,9 +54,13 @@ if __name__ == "__main__":
         logger.error("[Error] Dataset path is invalid!")
         sys.exit(1)
 
-    dataset = get_dataset(dataset_files).shuffle(args.shuffle_buffer_size)
-    train_dataset = dataset.skip(args.num_dev_dataset).batch(args.batch_size)
-    dev_dataset = dataset.take(args.num_dev_dataset).batch(max(args.batch_size, args.dev_batch_size))
+    with open(args.spm_model_path, "rb") as f:
+        tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
+
+    flat_fn = tf.function(lambda inputs, labels: (tf.data.Dataset.from_tensor_slices((inputs, labels))))
+    dataset = get_dataset(dataset_files, tokenizer).shuffle(args.shuffle_buffer_size).flat_map(flat_fn)
+    train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
+    dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
 
     if args.steps_per_epoch:
         train_dataset.repeat()
@@ -62,7 +68,10 @@ if __name__ == "__main__":
 
     # Model Initialize
     with open(args.model_config_path) as f:
-        model = SampleModel(**json.load(f))
+        model = BiLSTMSeq2Seq(**json.load(f))
+
+    model((tf.keras.Input([None]), tf.keras.Input([None])))
+    model.summary()
 
     # Load pretrained model
     if args.pretrained_model_path:
@@ -72,8 +81,8 @@ if __name__ == "__main__":
     # Model Compile
     model.compile(
         optimizer=tf.optimizers.Adam(args.learning_rate),
-        loss=tf.keras.losses.BinaryCrossentropy(),
-        metrics=[tf.keras.metrics.BinaryAccuracy()],
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
     )
     logger.info("Model compiling complete")
     logger.info("Start training")
@@ -89,7 +98,7 @@ if __name__ == "__main__":
                 os.path.join(
                     args.output_path,
                     "models",
-                    "model-{epoch}epoch-{val_loss:.4f}loss_{val_binary_accuracy:.4f}acc.ckpt",
+                    "model-{epoch}epoch-{val_loss:.4f}loss_{val_sparse_categorical_accuracy:.4f}acc.ckpt",
                 ),
                 save_weights_only=True,
                 verbose=1,
