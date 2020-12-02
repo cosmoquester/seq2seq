@@ -9,7 +9,7 @@ import tensorflow as tf
 import tensorflow_text as text
 
 from seq2seq.data import get_dataset
-from seq2seq.model import BiLSTMSeq2Seq
+from seq2seq.model import RNNSeq2Seq
 from seq2seq.utils import get_logger, learning_rate_scheduler
 
 # fmt: off
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     # Model Initialize
     with open(args.model_config_path) as f:
-        model = BiLSTMSeq2Seq(**json.load(f))
+        model = RNNSeq2Seq(**json.load(f))
 
     model((tf.keras.Input([None]), tf.keras.Input([None])))
     model.summary()

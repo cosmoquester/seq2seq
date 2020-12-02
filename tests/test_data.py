@@ -16,7 +16,7 @@ def test_get_dataset(data_path):
         def tokenize(self, text):
             return tf.strings.unicode_decode("2" + text + "3", "UTF-8")
 
-    dataset = get_dataset(os.path.join(data_path, "sample_dataset.txt"), PseudoTokenizer())
+    dataset = get_dataset(os.path.join(data_path, "sample_dataset.txt"), PseudoTokenizer(), False)
 
     data = next(iter(dataset))
     (encoder_input, decoder_input), labels = data

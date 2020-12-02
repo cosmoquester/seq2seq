@@ -1,4 +1,5 @@
 {
     "vocab_size": 16000,
-    "hidden_dim": 128
+    "hidden_dim": 128,
+    "cell_type": "SimpleRNN"
 }

@@ -3,12 +3,14 @@ from typing import Optional, Tuple
 import tensorflow as tf
 
 
-class BiLSTMSeq2Seq(tf.keras.Model):
+class RNNSeq2Seq(tf.keras.Model):
     """
-    Seq2seq model using BiLSTM.
+    Seq2seq model using RNN cell.
 
     Arguments:
+        vocab_size: Integer, the size of vocabulary.
         hidden_dim: Integer, the hidden dimension size of SampleModel.
+        cell_type: String, one of (SimpleRNN, LSTM, GRU).
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -25,12 +27,14 @@ class BiLSTMSeq2Seq(tf.keras.Model):
             `[BatchSize, VocabSize]
     """
 
-    def __init__(self, vocab_size, hidden_dim):
-        super(BiLSTMSeq2Seq, self).__init__()
+    def __init__(self, vocab_size, hidden_dim, cell_type):
+        super(RNNSeq2Seq, self).__init__()
+
+        assert cell_type in ("SimpleRNN", "LSTM", "GRU"), "RNN type is not valid!"
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
-        self.encoder = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(hidden_dim, return_state=True))
-        self.decoder = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(hidden_dim))
+        self.encoder = tf.keras.layers.Bidirectional(getattr(tf.keras.layers, cell_type)(hidden_dim, return_state=True))
+        self.decoder = tf.keras.layers.Bidirectional(getattr(tf.keras.layers, cell_type)(hidden_dim))
         self.dense = tf.keras.layers.Dense(vocab_size)
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):

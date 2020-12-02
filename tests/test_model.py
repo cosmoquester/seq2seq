@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from seq2seq.model import BiLSTMSeq2Seq
+from seq2seq.model import RNNSeq2Seq
 
 
 def test_model():
@@ -11,7 +11,7 @@ def test_model():
     vocab_size = 128
     hidden_dim = 64
 
-    model = BiLSTMSeq2Seq(vocab_size=vocab_size, hidden_dim=hidden_dim)
+    model = RNNSeq2Seq(vocab_size=vocab_size, hidden_dim=hidden_dim, cell_type="SimpleRNN")
     output = model(
         (
             tf.random.uniform((batch_size, encoder_sequence), maxval=vocab_size),
