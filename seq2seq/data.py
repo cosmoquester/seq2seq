@@ -2,12 +2,14 @@ import tensorflow as tf
 import tensorflow_text as text
 
 
-def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer):
+def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encoding: bool):
     """
     Read dataset file and construct tensorflow dataset
 
     :param dataset_file_path: tsv dataset file path. formed (sentence1, sentence2) without header.
     :param tokenizer: SentencepieceTokenizer instance.
+    :param auto_encoding: whether to use text lines dataset for auto encoding.
+                            If true, open dataset files as txt and a lines is an example for auto encoding.
     """
 
     @tf.function
@@ -28,7 +30,11 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer):
 
         return (encoder_input, decoder_input), labels
 
-    dataset = tf.data.experimental.CsvDataset(dataset_file_path, [tf.string, tf.string], field_delim="\t").map(
-        mapping_fn
-    )
-    return dataset
+    if auto_encoding:
+        dataset = tf.data.TextLineDataset(dataset_file_path, num_parallel_reads=tf.data.experimental.AUTOTUNE).map(
+            lambda text: (text, text)
+        )
+    else:
+        dataset = tf.data.experimental.CsvDataset(dataset_file_path, [tf.string, tf.string], field_delim="\t")
+
+    return dataset.map(mapping_fn)

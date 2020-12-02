@@ -27,8 +27,9 @@ parser.add_argument("--batch-size", type=int, default=2)
 parser.add_argument("--dev-batch-size", type=int, default=2)
 parser.add_argument("--num-dev-dataset", type=int, default=2)
 parser.add_argument("--tensorboard-update-freq", type=int, default=1)
-parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
+parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
+parser.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 # fmt: on
 
 if __name__ == "__main__":
@@ -54,11 +55,13 @@ if __name__ == "__main__":
         logger.error("[Error] Dataset path is invalid!")
         sys.exit(1)
 
-    with open(args.spm_model_path, "rb") as f:
+    with open(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     flat_fn = tf.function(lambda inputs, labels: (tf.data.Dataset.from_tensor_slices((inputs, labels))))
-    dataset = get_dataset(dataset_files, tokenizer).shuffle(args.shuffle_buffer_size).flat_map(flat_fn)
+    dataset = (
+        get_dataset(dataset_files, tokenizer, args.auto_encoding).shuffle(args.shuffle_buffer_size).flat_map(flat_fn)
+    )
     train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
     dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
 
