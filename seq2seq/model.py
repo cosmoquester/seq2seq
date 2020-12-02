@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import tensorflow as tf
 
@@ -11,10 +11,11 @@ class BiLSTMSeq2Seq(tf.keras.Model):
         hidden_dim: Integer, the hidden dimension size of SampleModel.
 
     Call arguments:
-        encoder_tokens: A 3D tensor, with shape of `[BatchSize, EncoderSequenceLength]`.
-                            all values are in [0, VocabSize).
-        encoder_tokens: A 3D tensor, with shape of `[BatchSize, DecoderSequenceLength]`.
-                            all values are in [0, VocabSize).
+        inputs: A tuple (encoder_tokens, decoder_tokens)
+            encoder_tokens: A 3D tensor, with shape of `[BatchSize, EncoderSequenceLength]`.
+                                all values are in [0, VocabSize).
+            decoder_tokens: A 3D tensor, with shape of `[BatchSize, DecoderSequenceLength]`.
+                                all values are in [0, VocabSize).
         training: Python boolean indicating whether the layer should behave in
             training mode or in inference mode. Only relevant when `dropout` or
             `recurrent_dropout` is used.
@@ -32,7 +33,9 @@ class BiLSTMSeq2Seq(tf.keras.Model):
         self.decoder = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(hidden_dim))
         self.dense = tf.keras.layers.Dense(vocab_size)
 
-    def call(self, encoder_tokens: tf.Tensor, decoder_tokens: tf.Tensor, training: Optional[bool] = None):
+    def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
+        encoder_tokens, decoder_tokens = inputs
+
         # [BatchSize, SequenceLength, VocabSize]
         encoder_embedding = self.embedding(encoder_tokens)
         decoder_embedding = self.embedding(decoder_tokens)

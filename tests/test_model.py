@@ -13,8 +13,10 @@ def test_model():
 
     model = BiLSTMSeq2Seq(vocab_size=vocab_size, hidden_dim=hidden_dim)
     output = model(
-        tf.random.uniform((batch_size, encoder_sequence), maxval=vocab_size),
-        tf.random.uniform((batch_size, decoder_sequence), maxval=vocab_size),
+        (
+            tf.random.uniform((batch_size, encoder_sequence), maxval=vocab_size),
+            tf.random.uniform((batch_size, decoder_sequence), maxval=vocab_size),
+        )
     )
 
     tf.debugging.assert_equal(tf.shape(output), (batch_size, vocab_size))
