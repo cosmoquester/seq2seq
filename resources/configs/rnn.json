@@ -1,0 +1,7 @@
+{
+    "cell_type": "SimpleRNN",
+    "vocab_size": 16000,
+    "hidden_dim": 128,
+    "num_encoder_layers": 3,
+    "num_decoder_layers": 3
+}

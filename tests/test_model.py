@@ -11,7 +11,13 @@ def test_model():
     vocab_size = 128
     hidden_dim = 64
 
-    model = RNNSeq2Seq(vocab_size=vocab_size, hidden_dim=hidden_dim, cell_type="SimpleRNN")
+    model = RNNSeq2Seq(
+        cell_type="SimpleRNN",
+        vocab_size=vocab_size,
+        hidden_dim=hidden_dim,
+        num_encoder_layers=2,
+        num_decoder_layers=2,
+    )
     output = model(
         (
             tf.random.uniform((batch_size, encoder_sequence), maxval=vocab_size),
