@@ -24,8 +24,8 @@ parser.add_argument("--batch-size", type=int, default=512)
 parser.add_argument("--dev-batch-size", type=int, default=512)
 parser.add_argument("--shuffle-buffer-size", type=int, default=100000)
 parser.add_argument("--num-dev-dataset", type=int, default=30000)
-parser.add_argument("--tensorboard-update-freq", type=int, default='batch', help='log losses and metrics every after this value step')
-parser.add_argument("--save-freq", type=int, default='epoch', help="save model checkpoint every after this value step")
+parser.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
+parser.add_argument("--save-freq", type=int, help="save model checkpoint every after this value step")
 parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 parser.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 parser.add_argument("--device", type=str, default="CPU", help="device to train model")
@@ -107,10 +107,11 @@ if __name__ == "__main__":
                 ),
                 save_weights_only=True,
                 verbose=1,
-                save_freq=args.save_freq,
+                save_freq=args.save_freq if args.save_freq else "epoch",
             ),
             tf.keras.callbacks.TensorBoard(
-                path_join(args.output_path, "logs"), update_freq=args.tensorboard_update_freq
+                path_join(args.output_path, "logs"),
+                update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
             ),
             tf.keras.callbacks.LearningRateScheduler(
                 learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
