@@ -11,24 +11,31 @@ from seq2seq.utils import get_device_strategy, get_logger, learning_rate_schedul
 
 # fmt: off
 parser = argparse.ArgumentParser()
-parser.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
-parser.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
-parser.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
-parser.add_argument("--output-path", default="output", help="output directory to save log and model checkpoints")
-parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
-parser.add_argument("--epochs", type=int, default=10)
-parser.add_argument("--steps-per-epoch", type=int, default=None)
-parser.add_argument("--learning-rate", type=float, default=2e-4)
-parser.add_argument("--min-learning-rate", type=float, default=1e-8)
-parser.add_argument("--batch-size", type=int, default=512)
-parser.add_argument("--dev-batch-size", type=int, default=512)
-parser.add_argument("--shuffle-buffer-size", type=int, default=100000)
-parser.add_argument("--num-dev-dataset", type=int, default=30000)
-parser.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
-parser.add_argument("--save-freq", type=int, help="save model checkpoint every after this value step")
-parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
-parser.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
-parser.add_argument("--device", type=str, default="CPU", help="device to train model")
+file_paths = parser.add_argument_group("File Paths")
+file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
+file_paths.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
+file_paths.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
+file_paths.add_argument("--output-path", default="output", help="output directory to save log and model checkpoints")
+file_paths.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
+
+training_parameters = parser.add_argument_group("Training Parameters")
+training_parameters.add_argument("--epochs", type=int, default=10)
+training_parameters.add_argument("--steps-per-epoch", type=int, default=None)
+training_parameters.add_argument("--learning-rate", type=float, default=2e-4)
+training_parameters.add_argument("--min-learning-rate", type=float, default=1e-8)
+training_parameters.add_argument("--batch-size", type=int, default=512)
+training_parameters.add_argument("--dev-batch-size", type=int, default=512)
+training_parameters.add_argument("--num-dev-dataset", type=int, default=30000)
+training_parameters.add_argument("--shuffle-buffer-size", type=int, default=100000)
+training_parameters.add_argument("--prefetch-buffer-size", type=int, default=100000)
+training_parameters.add_argument("--max-sequence-length", type=int, default=256)
+
+other_settings = parser.add_argument_group("Other settings")
+other_settings.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
+other_settings.add_argument("--save-freq", type=int, help="save model checkpoint every after this value step")
+other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
+other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
+other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
 if __name__ == "__main__":
@@ -59,8 +66,17 @@ if __name__ == "__main__":
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     flat_fn = tf.function(lambda inputs, labels: (tf.data.Dataset.from_tensor_slices((inputs, labels))))
+    filter_fn = tf.function(
+        lambda inputs, labels: tf.math.logical_and(
+            tf.shape(inputs[0])[1] < args.max_sequence_length, tf.size(labels) < args.max_sequence_length
+        )
+    )
     dataset = (
-        get_dataset(dataset_files, tokenizer, args.auto_encoding).shuffle(args.shuffle_buffer_size).flat_map(flat_fn)
+        get_dataset(dataset_files, tokenizer, args.auto_encoding)
+        .filter(filter_fn)
+        .shuffle(args.shuffle_buffer_size)
+        .flat_map(flat_fn)
+        .prefetch(args.prefetch_buffer_size)
     )
     train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
     dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
