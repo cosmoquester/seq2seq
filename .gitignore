@@ -18,3 +18,9 @@ venv.bak/
 
 # log file
 *.log
+
+# training by-products
+logs/
+models/
+argument_configs.txt
+model_config.json
