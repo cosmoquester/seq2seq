@@ -32,6 +32,7 @@ parser.add_argument("--device", type=str, default="CPU", help="device to train m
 
 if __name__ == "__main__":
     args = parser.parse_args()
+    strategy = get_device_strategy(args.device)
 
     logger = get_logger()
 
@@ -67,7 +68,7 @@ if __name__ == "__main__":
         train_dataset.repeat()
         logger.info("Repeat dataset")
 
-    with get_device_strategy(args.device).scope():
+    with strategy.scope():
 
         # Model Initialize
         with tf.io.gfile.GFile(args.model_config_path) as f:
