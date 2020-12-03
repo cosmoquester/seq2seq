@@ -14,17 +14,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
 parser.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
 parser.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
-parser.add_argument("--shuffle-buffer-size", type=int, default=5000)
 parser.add_argument("--output-path", default="output", help="output directory to save log and model checkpoints")
+parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
 parser.add_argument("--epochs", type=int, default=10)
 parser.add_argument("--steps-per-epoch", type=int, default=None)
-parser.add_argument("--learning-rate", type=float, default=2e-3)
+parser.add_argument("--learning-rate", type=float, default=2e-4)
 parser.add_argument("--min-learning-rate", type=float, default=1e-8)
-parser.add_argument("--batch-size", type=int, default=2)
-parser.add_argument("--dev-batch-size", type=int, default=2)
-parser.add_argument("--num-dev-dataset", type=int, default=2)
-parser.add_argument("--tensorboard-update-freq", type=int, default=1)
-parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
+parser.add_argument("--batch-size", type=int, default=512)
+parser.add_argument("--dev-batch-size", type=int, default=512)
+parser.add_argument("--shuffle-buffer-size", type=int, default=100000)
+parser.add_argument("--num-dev-dataset", type=int, default=30000)
+parser.add_argument("--tensorboard-update-freq", type=int, default='batch', help='log losses and metrics every after this value step')
+parser.add_argument("--save-freq", type=int, default='epoch', help="save model checkpoint every after this value step")
 parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 parser.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 parser.add_argument("--device", type=str, default="CPU", help="device to train model")
@@ -106,6 +107,7 @@ if __name__ == "__main__":
                 ),
                 save_weights_only=True,
                 verbose=1,
+                save_freq=args.save_freq,
             ),
             tf.keras.callbacks.TensorBoard(
                 path_join(args.output_path, "logs"), update_freq=args.tensorboard_update_freq
