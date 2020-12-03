@@ -1,8 +1,5 @@
 import argparse
-import glob
 import json
-import os
-import shutil
 import sys
 
 import tensorflow as tf
@@ -10,11 +7,11 @@ import tensorflow_text as text
 
 from seq2seq.data import get_dataset
 from seq2seq.model import RNNSeq2Seq
-from seq2seq.utils import get_logger, learning_rate_scheduler
+from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
 # fmt: off
 parser = argparse.ArgumentParser()
-parser.add_argument("--model-config-path", type=str, default="resources/configs/bi-lstm.json", help="model config file")
+parser.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
 parser.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
 parser.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
 parser.add_argument("--shuffle-buffer-size", type=int, default=5000)
@@ -30,6 +27,7 @@ parser.add_argument("--tensorboard-update-freq", type=int, default=1)
 parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
 parser.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 parser.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
+parser.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
 if __name__ == "__main__":
@@ -43,19 +41,19 @@ if __name__ == "__main__":
         logger.info("Use Mixed Precision FP16")
 
     # Copy config file
-    os.makedirs(args.output_path)
-    with open(os.path.join(args.output_path, "argument_configs.txt"), "w") as fout:
+    tf.io.gfile.makedirs(args.output_path)
+    with tf.io.gfile.GFile(path_join(args.output_path, "argument_configs.txt"), "w") as fout:
         for k, v in vars(args).items():
             fout.write(f"{k}: {v}\n")
-    shutil.copy(args.model_config_path, args.output_path)
+    tf.io.gfile.copy(args.model_config_path, path_join(args.output_path, "model_config.json"))
 
     # Construct Dataset
-    dataset_files = glob.glob(args.dataset_path)
+    dataset_files = tf.io.gfile.glob(args.dataset_path)
     if not dataset_files:
         logger.error("[Error] Dataset path is invalid!")
         sys.exit(1)
 
-    with open(args.sp_model_path, "rb") as f:
+    with tf.io.gfile.GFile(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     flat_fn = tf.function(lambda inputs, labels: (tf.data.Dataset.from_tensor_slices((inputs, labels))))
@@ -69,26 +67,28 @@ if __name__ == "__main__":
         train_dataset.repeat()
         logger.info("Repeat dataset")
 
-    # Model Initialize
-    with open(args.model_config_path) as f:
-        model = RNNSeq2Seq(**json.load(f))
+    with get_device_strategy(args.device).scope():
 
-    model((tf.keras.Input([None]), tf.keras.Input([None])))
-    model.summary()
+        # Model Initialize
+        with tf.io.gfile.GFile(args.model_config_path) as f:
+            model = RNNSeq2Seq(**json.load(f))
 
-    # Load pretrained model
-    if args.pretrained_model_path:
-        model.load_weights(args.pretrained_model_path)
-        logger.info("Loaded weights of model")
+        model((tf.keras.Input([None]), tf.keras.Input([None])))
+        model.summary()
 
-    # Model Compile
-    model.compile(
-        optimizer=tf.optimizers.Adam(args.learning_rate),
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
-    )
-    logger.info("Model compiling complete")
-    logger.info("Start training")
+        # Load pretrained model
+        if args.pretrained_model_path:
+            model.load_weights(args.pretrained_model_path)
+            logger.info("Loaded weights of model")
+
+        # Model Compile
+        model.compile(
+            optimizer=tf.optimizers.Adam(args.learning_rate),
+            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
+        )
+        logger.info("Model compiling complete")
+        logger.info("Start training")
 
     # Training
     model.fit(
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         steps_per_epoch=args.steps_per_epoch,
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint(
-                os.path.join(
+                path_join(
                     args.output_path,
                     "models",
                     "model-{epoch}epoch-{val_loss:.4f}loss_{val_sparse_categorical_accuracy:.4f}acc.ckpt",
@@ -107,7 +107,7 @@ if __name__ == "__main__":
                 verbose=1,
             ),
             tf.keras.callbacks.TensorBoard(
-                os.path.join(args.output_path, "logs"), update_freq=args.tensorboard_update_freq
+                path_join(args.output_path, "logs"), update_freq=args.tensorboard_update_freq
             ),
             tf.keras.callbacks.LearningRateScheduler(
                 learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
