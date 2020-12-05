@@ -10,7 +10,7 @@ from seq2seq.model import RNNSeq2Seq
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
 # fmt: off
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser("This is script to train seq2seq model")
 file_paths = parser.add_argument_group("File Paths")
 file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
 file_paths.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
@@ -32,7 +32,6 @@ training_parameters.add_argument("--max-sequence-length", type=int, default=256)
 
 other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
-other_settings.add_argument("--save-freq", type=int, help="save model checkpoint every after this value step")
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
@@ -123,7 +122,6 @@ if __name__ == "__main__":
                 ),
                 save_weights_only=True,
                 verbose=1,
-                save_freq=args.save_freq if args.save_freq else "epoch",
             ),
             tf.keras.callbacks.TensorBoard(
                 path_join(args.output_path, "logs"),
