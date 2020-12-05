@@ -2,6 +2,8 @@ from typing import Optional, Tuple
 
 import tensorflow as tf
 
+from .layer import BahdanauAttention
+
 
 class RNNSeq2Seq(tf.keras.Model):
     """
@@ -38,29 +40,25 @@ class RNNSeq2Seq(tf.keras.Model):
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.encoder = [
-            tf.keras.layers.Bidirectional(
-                # SimpleRNN, LSTM, GRU
-                getattr(tf.keras.layers, cell_type)(
-                    hidden_dim,
-                    return_sequences=True,
-                    return_state=True,
-                    dropout=dropout,
-                    recurrent_dropout=dropout,
-                ),
+            # SimpleRNN, LSTM, GRU
+            getattr(tf.keras.layers, cell_type)(
+                hidden_dim,
+                return_sequences=True,
+                return_state=True,
+                dropout=dropout,
+                recurrent_dropout=dropout,
                 name=f"encoder_layer{i}",
             )
             for i in range(num_encoder_layers)
         ]
         self.decoder = [
-            tf.keras.layers.Bidirectional(
-                # SimpleRNN, LSTM, GRU
-                getattr(tf.keras.layers, cell_type)(
-                    hidden_dim,
-                    return_sequences=True,
-                    return_state=True,
-                    dropout=dropout,
-                    recurrent_dropout=dropout,
-                ),
+            # SimpleRNN, LSTM, GRU
+            getattr(tf.keras.layers, cell_type)(
+                hidden_dim,
+                return_sequences=True,
+                return_state=True,
+                dropout=dropout,
+                recurrent_dropout=dropout,
                 name=f"decoder_layer{i}",
             )
             for i in range(num_decoder_layers)
