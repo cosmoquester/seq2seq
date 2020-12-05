@@ -13,6 +13,7 @@ class RNNSeq2Seq(tf.keras.Model):
         hidden_dim: Integer, the hidden dimension size of SampleModel.
         num_encoder_layers: Integer, the number of seq2seq encoder.
         num_decoder_layers: Integer, the number of seq2seq decoder.
+        dropout: Float dropout rate
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -29,23 +30,40 @@ class RNNSeq2Seq(tf.keras.Model):
             `[BatchSize, VocabSize]`
     """
 
-    def __init__(self, cell_type, vocab_size, hidden_dim, num_encoder_layers, num_decoder_layers):
+    def __init__(self, cell_type, vocab_size, hidden_dim, num_encoder_layers, num_decoder_layers, dropout):
         super(RNNSeq2Seq, self).__init__()
 
         assert cell_type in ("SimpleRNN", "LSTM", "GRU"), "RNN type is not valid!"
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
+        self.dropout = tf.keras.layers.Dropout(dropout)
         self.encoder = [
             tf.keras.layers.Bidirectional(
-                getattr(tf.keras.layers, cell_type)(hidden_dim, return_sequences=True, return_state=True)
+                # SimpleRNN, LSTM, GRU
+                getattr(tf.keras.layers, cell_type)(
+                    hidden_dim,
+                    return_sequences=True,
+                    return_state=True,
+                    dropout=dropout,
+                    recurrent_dropout=dropout,
+                ),
+                name=f"encoder_layer{i}",
             )
-            for _ in range(num_encoder_layers)
+            for i in range(num_encoder_layers)
         ]
         self.decoder = [
             tf.keras.layers.Bidirectional(
-                getattr(tf.keras.layers, cell_type)(hidden_dim, return_sequences=True, return_state=True)
+                # SimpleRNN, LSTM, GRU
+                getattr(tf.keras.layers, cell_type)(
+                    hidden_dim,
+                    return_sequences=True,
+                    return_state=True,
+                    dropout=dropout,
+                    recurrent_dropout=dropout,
+                ),
+                name=f"decoder_layer{i}",
             )
-            for _ in range(num_decoder_layers)
+            for i in range(num_decoder_layers)
         ]
         self.dense = tf.keras.layers.Dense(vocab_size)
 
@@ -53,8 +71,8 @@ class RNNSeq2Seq(tf.keras.Model):
         encoder_tokens, decoder_tokens = inputs
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.embedding(encoder_tokens)
-        decoder_input = self.embedding(decoder_tokens)
+        encoder_input = self.dropout(self.embedding(encoder_tokens))
+        decoder_input = self.dropout(self.embedding(decoder_tokens))
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
