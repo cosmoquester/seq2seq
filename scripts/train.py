@@ -5,13 +5,14 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
+import seq2seq
 from seq2seq.data import get_dataset
-from seq2seq.model import RNNSeq2Seq
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to train seq2seq model")
 file_paths = parser.add_argument_group("File Paths")
+file_paths.add_argument("--model-name", type=str, default="RNNSeq2SeqWithAttention", help="Seq2seq model name")
 file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
 file_paths.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
 file_paths.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
@@ -88,7 +89,7 @@ if __name__ == "__main__":
 
         # Model Initialize
         with tf.io.gfile.GFile(args.model_config_path) as f:
-            model = RNNSeq2Seq(**json.load(f))
+            model = getattr(seq2seq.model, args.model_name)(**json.load(f))
 
         model((tf.keras.Input([None]), tf.keras.Input([None])))
         model.summary()
@@ -132,3 +133,4 @@ if __name__ == "__main__":
             ),
         ],
     )
+    logger.info("Finished training!")
