@@ -17,6 +17,7 @@ def test_model():
         hidden_dim=hidden_dim,
         num_encoder_layers=2,
         num_decoder_layers=2,
+        dropout=0.0,
     )
     output = model(
         (

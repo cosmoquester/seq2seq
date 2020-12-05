@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from collections import Counter
 from typing import Iterable
 
 import tensorflow as tf
@@ -59,3 +60,32 @@ def get_device_strategy(device) -> tf.distribute.Strategy:
 
     # Use CPU
     return tf.distribute.OneDeviceStrategy("/cpu:0")
+
+
+def n_gram_precision(true_tokens, pred_tokens, n):
+    true_n_grams = []
+    pred_n_grams = []
+
+    for i in range(len(true_tokens) - n + 1):
+        true_n_grams.append(tuple(true_tokens[i : i + n]))
+    for i in range(len(pred_tokens) - n + 1):
+        pred_n_grams.append(tuple(pred_tokens[i : i + n]))
+
+    true_n_gram_counter = Counter(true_n_grams)
+    pred_n_gram_counter = Counter(pred_n_grams)
+
+    correct = 0
+    for true_n_gram in true_n_gram_counter:
+        correct += min(pred_n_gram_counter[true_n_gram], true_n_gram_counter[true_n_gram])
+    return correct / len(true_n_grams)
+
+
+def calculat_bleu_score(true_tokens, pred_tokens):
+    n_gram_score = 1.0
+    for n in range(1, 5):
+        n_gram_score *= n_gram_precision(true_tokens, pred_tokens, n)
+    n_gram_score **= 0.25
+
+    brevity_penalty = min(1.0, len(pred_tokens) / len(true_tokens))
+
+    return n_gram_score * brevity_penalty

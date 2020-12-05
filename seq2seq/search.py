@@ -24,19 +24,24 @@ def greedy_search(
     """
     batch_size = tf.shape(encoder_input)[0]
     decoder_input = tf.fill([batch_size, 1], bos_id)
+    perplexity = tf.fill([batch_size, 1], 0.0)
     sequence_lengths = tf.fill([batch_size, 1], max_sequence_length)
-    is_ended = tf.zeros([batch_size], tf.bool)
+    is_ended = tf.zeros([batch_size, 1], tf.bool)
     while tf.shape(decoder_input)[1] < max_sequence_length and not tf.reduce_all(is_ended):
         # [BatchSize, VocabSize]
         output = model((encoder_input, decoder_input))
+        output = tf.nn.log_softmax(output, axis=1)
 
         # [BatchSize, 1]
-        new_tokens = tf.cast(tf.argmax(output, axis=1), tf.int32)
+        probs, new_tokens = tf.math.top_k(output)
+        probs, new_tokens = tf.cast(probs, tf.float32), tf.cast(new_tokens, tf.int32)
+        perplexity += probs
         new_tokens = tf.where(is_ended, 0, new_tokens)
         is_ended = tf.logical_or(is_ended, new_tokens == eos_id)
-        new_tokens = tf.expand_dims(new_tokens, axis=1)
+        sequence_lengths = tf.where(new_tokens == eos_id, tf.shape(decoder_input)[1], sequence_lengths)
 
         # [BatchSize, DecoderSequenceLength + 1]
         decoder_input = tf.concat((decoder_input, new_tokens), axis=1)
 
-    return decoder_input
+    perplexity = tf.squeeze(tf.exp(perplexity) ** tf.cast(-1 / sequence_lengths, tf.float32), axis=1)
+    return decoder_input, perplexity
