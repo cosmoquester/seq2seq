@@ -6,7 +6,9 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
     """
     Read dataset file and construct tensorflow dataset
 
-    :param dataset_file_path: tsv dataset file path. formed (sentence1, sentence2) without header.
+    :param dataset_file_path:
+        - if auto_encoding, text dataset file path just containing text lines.
+        - else, tsv dataset file path. formed (sentence1, sentence2) without header.
     :param tokenizer: SentencepieceTokenizer instance.
     :param auto_encoding: whether to use text lines dataset for auto encoding.
                             If true, open dataset files as txt and a lines is an example for auto encoding.

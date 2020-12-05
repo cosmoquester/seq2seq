@@ -52,7 +52,7 @@ class RNNSeq2Seq(tf.keras.Model):
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs
 
-        # [BatchSize, SequenceLength, VocabSize]
+        # [BatchSize, SequenceLength, HiddenDim]
         encoder_input = self.embedding(encoder_tokens)
         decoder_input = self.embedding(decoder_tokens)
 
