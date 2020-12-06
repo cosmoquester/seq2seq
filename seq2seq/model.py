@@ -16,6 +16,7 @@ class RNNSeq2Seq(tf.keras.Model):
         num_encoder_layers: Integer, the number of seq2seq encoder.
         num_decoder_layers: Integer, the number of seq2seq decoder.
         dropout: Float dropout rate
+        use_bidirectional: Boolean, whether use Bidirectional or not
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -32,16 +33,26 @@ class RNNSeq2Seq(tf.keras.Model):
             `[BatchSize, VocabSize]`
     """
 
-    def __init__(self, cell_type, vocab_size, hidden_dim, num_encoder_layers, num_decoder_layers, dropout):
+    def __init__(
+        self,
+        cell_type,
+        vocab_size,
+        hidden_dim,
+        num_encoder_layers,
+        num_decoder_layers,
+        dropout,
+        use_bidirectional,
+    ):
         super(RNNSeq2Seq, self).__init__()
 
         assert cell_type in ("SimpleRNN", "LSTM", "GRU"), "RNN type is not valid!"
+        cell_type = getattr(tf.keras.layers, cell_type)
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
-            getattr(tf.keras.layers, cell_type)(
+            cell_type(
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -53,7 +64,7 @@ class RNNSeq2Seq(tf.keras.Model):
         ]
         self.decoder = [
             # SimpleRNN, LSTM, GRU
-            getattr(tf.keras.layers, cell_type)(
+            cell_type(
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -63,6 +74,10 @@ class RNNSeq2Seq(tf.keras.Model):
             )
             for i in range(num_decoder_layers)
         ]
+
+        if use_bidirectional:
+            self.encoder = [tf.keras.layers.Bidirectional(cell) for cell in self.encoder]
+            self.decoder = [tf.keras.layers.Bidirectional(cell) for cell in self.decoder]
         self.dense = tf.keras.layers.Dense(vocab_size)
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
@@ -94,7 +109,8 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         hidden_dim: Integer, the hidden dimension size of SampleModel.
         num_encoder_layers: Integer, the number of seq2seq encoder.
         num_decoder_layers: Integer, the number of seq2seq decoder.
-        dropout: Float dropout rate
+        dropout: Float, dropout rate
+        use_bidirectional: Boolean, whether use Bidirectional or not
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -111,16 +127,26 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             `[BatchSize, VocabSize]`
     """
 
-    def __init__(self, cell_type, vocab_size, hidden_dim, num_encoder_layers, num_decoder_layers, dropout):
+    def __init__(
+        self,
+        cell_type,
+        vocab_size,
+        hidden_dim,
+        num_encoder_layers,
+        num_decoder_layers,
+        dropout,
+        use_bidirectional,
+    ):
         super(RNNSeq2SeqWithAttention, self).__init__()
 
         assert cell_type in ("SimpleRNN", "LSTM", "GRU"), "RNN type is not valid!"
+        cell_type = getattr(tf.keras.layers, cell_type)
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
-            getattr(tf.keras.layers, cell_type)(
+            cell_type(
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -132,7 +158,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         ]
         self.decoder = [
             # SimpleRNN, LSTM, GRU
-            getattr(tf.keras.layers, cell_type)(
+            cell_type(
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -142,6 +168,11 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             )
             for i in range(num_decoder_layers)
         ]
+
+        if use_bidirectional:
+            self.encoder = [tf.keras.layers.Bidirectional(cell) for cell in self.encoder]
+            self.decoder = [tf.keras.layers.Bidirectional(cell) for cell in self.decoder]
+
         self.attention = BahdanauAttention(hidden_dim)
         self.dense = tf.keras.layers.Dense(vocab_size)
 

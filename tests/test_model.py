@@ -18,6 +18,7 @@ def test_model():
         num_encoder_layers=2,
         num_decoder_layers=2,
         dropout=0.0,
+        use_bidirectional=True,
     )
     output = model(
         (
