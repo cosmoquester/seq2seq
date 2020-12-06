@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 import seq2seq
 from seq2seq.data import get_dataset
-from seq2seq.search import greedy_search
+from seq2seq.search import beam_search, greedy_search
 from seq2seq.utils import calculat_bleu_score, get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
 # fmt: off
@@ -28,6 +28,7 @@ inference_parameters.add_argument("--prefetch-buffer-size", type=int, default=10
 inference_parameters.add_argument("--max-sequence-length", type=int, default=256)
 inference_parameters.add_argument("--auto-encoding", action="store_true", help="evaluate by autoencoding performance dataset format is lines of texts (.txt)")
 inference_parameters.add_argument("--header", action="store_true", help="use this flag if dataset (tsv file) has header")
+inference_parameters.add_argument("--beam-size", type=int, default=0, help="not given, use greedy search else beam search with this value as beam size")
 
 other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
@@ -85,7 +86,13 @@ if __name__ == "__main__":
     dataset_tqdm = tqdm(dataset)
     for batch_input, batch_true_answer in dataset_tqdm:
         num_batch = len(batch_true_answer)
-        batch_pred_answer, perplexity = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)
+        if args.beam_size > 0:
+            batch_pred_answer, perplexity = beam_search(
+                model, batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length
+            )
+            batch_pred_answer = batch_pred_answer[:, 0, :]
+        else:
+            batch_pred_answer, perplexity = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)
         perplexity_sum += tf.math.reduce_sum(perplexity).numpy()
 
         for true_answer, pred_answer in zip(batch_true_answer, batch_pred_answer):
