@@ -3,6 +3,7 @@ from typing import Tuple
 import tensorflow as tf
 
 
+@tf.function
 def greedy_search(
     model: tf.keras.Model,
     encoder_input: tf.Tensor,
@@ -27,7 +28,11 @@ def greedy_search(
     log_perplexity = tf.fill([batch_size, 1], 0.0)
     sequence_lengths = tf.fill([batch_size, 1], max_sequence_length)
     is_ended = tf.zeros([batch_size, 1], tf.bool)
-    while tf.shape(decoder_input)[1] < max_sequence_length and not tf.reduce_all(is_ended):
+
+    def _cond(decoder_input, is_ended, log_perplexity, sequence_lengths):
+        return tf.shape(decoder_input)[1] < max_sequence_length and not tf.reduce_all(is_ended)
+
+    def _body(decoder_input, is_ended, log_perplexity, sequence_lengths):
         # [BatchSize, VocabSize]
         output = model((encoder_input, decoder_input))
         output = tf.nn.log_softmax(output, axis=1)
@@ -42,6 +47,20 @@ def greedy_search(
 
         # [BatchSize, DecoderSequenceLength + 1]
         decoder_input = tf.concat((decoder_input, new_tokens), axis=1)
+
+        return decoder_input, is_ended, log_perplexity, sequence_lengths
+
+    decoder_input, is_ended, log_perplexity, sequence_lengths = tf.while_loop(
+        _cond,
+        _body,
+        [decoder_input, is_ended, log_perplexity, sequence_lengths],
+        shape_invariants=[
+            tf.TensorSpec([None, None], tf.int32),
+            tf.TensorSpec(is_ended.get_shape(), is_ended.dtype),
+            tf.TensorSpec(log_perplexity.get_shape(), log_perplexity.dtype),
+            tf.TensorSpec(sequence_lengths.get_shape(), sequence_lengths.dtype),
+        ],
+    )
 
     perplexity = tf.squeeze(
         tf.pow(tf.exp(log_perplexity), tf.cast(-1 / sequence_lengths, log_perplexity.dtype)), axis=1
