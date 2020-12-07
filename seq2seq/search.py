@@ -115,7 +115,12 @@ def beam_search(
     def has_eos(decoder_input):
         return tf.reduce_any(decoder_input == eos_id, axis=-1)
 
-    while tf.shape(decoder_input)[1] < max_sequence_length and tf.reduce_any(tf.logical_not(has_eos(decoder_input))):
+    def _cond(encoder_input, decoder_input, log_perplexity):
+        return tf.shape(decoder_input)[1] < max_sequence_length and tf.reduce_any(
+            tf.logical_not(has_eos(decoder_input))
+        )
+
+    def _body(encoder_input, decoder_input, log_perplexity):
         # [BatchSize, VocabSize]
         output = model((encoder_input, decoder_input))
         output = tf.nn.log_softmax(output, axis=1)
@@ -138,7 +143,7 @@ def beam_search(
             # [BatchSize * BeamSize, 2]
             decoder_input = tf.concat([tf.fill([batch_size * beam_size, 1], bos_id), new_tokens], axis=1)
             log_perplexity = tf.cast(log_probs, log_perplexity.dtype)
-            continue
+            return encoder_input, decoder_input, log_perplexity
         else:
             # [BatchSize * BeamSize, BeamSize, DecoderSequenceLength + 1]
             decoder_input = tf.reshape(
@@ -164,6 +169,19 @@ def beam_search(
         decoder_input = tf.gather_nd(decoder_input, indices_for_decoder_input)
         log_perplexity = tf.cast(tf.gather_nd(log_probs, indices_for_decoder_input), log_perplexity.dtype)
         log_perplexity = tf.reshape(log_perplexity, [batch_size, beam_size])
+
+        return encoder_input, decoder_input, log_perplexity
+
+    encoder_input, decoder_input, log_perplexity = tf.while_loop(
+        _cond,
+        _body,
+        [encoder_input, decoder_input, log_perplexity],
+        shape_invariants=[
+            tf.TensorSpec([None, None], tf.int32),
+            tf.TensorSpec([None, None], tf.int32),
+            tf.TensorSpec([None, None]),
+        ],
+    )
 
     decoder_input = tf.reshape(decoder_input, [batch_size, beam_size, -1])
     sequence_lengths = get_sequnce_lengths(decoder_input)
