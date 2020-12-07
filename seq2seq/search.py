@@ -68,6 +68,7 @@ def greedy_search(
     return decoder_input, perplexity
 
 
+@tf.function
 def beam_search(
     model: tf.keras.Model,
     encoder_input: tf.Tensor,
@@ -126,7 +127,7 @@ def beam_search(
         # new_tokens: [BatchSize, 1]at first, [BatchSize * BeamSize, 1] after second loops
         log_probs, new_tokens = tf.reshape(log_probs, [batch_size, -1]), tf.reshape(new_tokens, [-1, 1])
         is_end_sequences = tf.reshape(tf.repeat(has_eos(decoder_input), beam_size, axis=0), [batch_size, -1])
-        log_probs = tf.where(is_end_sequences, 0.0, log_probs)
+        log_probs = tf.where(is_end_sequences, tf.cast(0.0, log_probs.dtype), log_probs)
         log_probs += tf.cast(tf.repeat(log_perplexity, beam_size, axis=1), log_probs.dtype)
 
         # Generate first token
@@ -136,7 +137,7 @@ def beam_search(
 
             # [BatchSize * BeamSize, 2]
             decoder_input = tf.concat([tf.fill([batch_size * beam_size, 1], bos_id), new_tokens], axis=1)
-            log_perplexity = log_probs
+            log_perplexity = tf.cast(log_probs, log_perplexity.dtype)
             continue
         else:
             # [BatchSize * BeamSize, BeamSize, DecoderSequenceLength + 1]
@@ -146,7 +147,7 @@ def beam_search(
             )
 
         length_penalty = tf.pow((1 + get_sequnce_lengths(decoder_input)) / (1 + beta), alpha)
-        length_penalty = tf.cast(tf.reshape(length_penalty, log_probs.shape), log_probs.dtype)
+        length_penalty = tf.cast(tf.reshape(length_penalty, tf.shape(log_probs)), log_probs.dtype)
         # [BatchSize, BeamSize]
         _, top_indices = tf.math.top_k(log_probs * length_penalty, k=beam_size)
 
@@ -161,7 +162,8 @@ def beam_search(
 
         # [BatchSize * BeamSize, DecoderSequenceLength]
         decoder_input = tf.gather_nd(decoder_input, indices_for_decoder_input)
-        log_perplexity = tf.reshape(tf.gather_nd(log_probs, indices_for_decoder_input), [batch_size, beam_size])
+        log_perplexity = tf.cast(tf.gather_nd(log_probs, indices_for_decoder_input), log_perplexity.dtype)
+        log_perplexity = tf.reshape(log_perplexity, [batch_size, beam_size])
 
     decoder_input = tf.reshape(decoder_input, [batch_size, beam_size, -1])
     sequence_lengths = get_sequnce_lengths(decoder_input)
