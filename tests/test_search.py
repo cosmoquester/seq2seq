@@ -1,6 +1,7 @@
+import tensorflow as tf
+
 from seq2seq.model import RNNSeq2Seq
 from seq2seq.search import beam_search, greedy_search
-import tensorflow as tf
 
 
 def test_search():

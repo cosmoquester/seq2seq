@@ -5,8 +5,8 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-import seq2seq
 from seq2seq.data import get_dataset
+from seq2seq.model import MODEL_MAP
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
 # fmt: off
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
         # Model Initialize
         with tf.io.gfile.GFile(args.model_config_path) as f:
-            model = getattr(seq2seq.model, args.model_name)(**json.load(f))
+            model = MODEL_MAP[args.model_name](**json.load(f))
 
         model((tf.keras.Input([None]), tf.keras.Input([None])))
         model.summary()

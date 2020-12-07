@@ -1,8 +1,14 @@
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
 
 from .layer import BahdanauAttention
+
+RNN_CELL_MAP: Dict[str, tf.keras.layers.Layer] = {
+    "SimpleRNN": tf.keras.layers.SimpleRNN,
+    "LSTM": tf.keras.layers.LSTM,
+    "GRU": tf.keras.layers.GRU,
+}
 
 
 class RNNSeq2Seq(tf.keras.Model):
@@ -45,14 +51,13 @@ class RNNSeq2Seq(tf.keras.Model):
     ):
         super(RNNSeq2Seq, self).__init__()
 
-        assert cell_type in ("SimpleRNN", "LSTM", "GRU"), "RNN type is not valid!"
-        cell_type = getattr(tf.keras.layers, cell_type)
+        assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
-            cell_type(
+            RNN_CELL_MAP[cell_type](
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -64,7 +69,7 @@ class RNNSeq2Seq(tf.keras.Model):
         ]
         self.decoder = [
             # SimpleRNN, LSTM, GRU
-            cell_type(
+            RNN_CELL_MAP[cell_type](
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -139,14 +144,13 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
     ):
         super(RNNSeq2SeqWithAttention, self).__init__()
 
-        assert cell_type in ("SimpleRNN", "LSTM", "GRU"), "RNN type is not valid!"
-        cell_type = getattr(tf.keras.layers, cell_type)
+        assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
         self.dropout = tf.keras.layers.Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
-            cell_type(
+            RNN_CELL_MAP[cell_type](
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -158,7 +162,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         ]
         self.decoder = [
             # SimpleRNN, LSTM, GRU
-            cell_type(
+            RNN_CELL_MAP[cell_type](
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -196,3 +200,9 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         # [BatchSize, VocabSize]
         output = self.dense(decoder_input[:, -1, :])
         return output
+
+
+MODEL_MAP: Dict[str, tf.keras.Model] = {
+    "RNNSeq2Seq": RNNSeq2Seq,
+    "RNNSeq2SeqWithAttention": RNNSeq2SeqWithAttention,
+}

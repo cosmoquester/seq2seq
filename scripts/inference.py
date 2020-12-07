@@ -6,8 +6,8 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-import seq2seq
 from seq2seq.data import get_dataset
+from seq2seq.model import MODEL_MAP
 from seq2seq.search import greedy_search
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     with strategy.scope():
         # Model Initialize & Load pretrained model
         with tf.io.gfile.GFile(args.model_config_path) as f:
-            model = getattr(seq2seq.model, args.model_name)(**json.load(f))
+            model = MODEL_MAP[args.model_name](**json.load(f))
         model.load_weights(args.model_path)
         logger.info("Loaded weights of model")
 
