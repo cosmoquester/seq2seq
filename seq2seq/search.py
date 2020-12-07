@@ -125,7 +125,7 @@ def beam_search(
         # log_probs: [BatchSize, BeamSize] at first, [BatchSize, BeamSize ** 2] after second loops
         # new_tokens: [BatchSize, 1]at first, [BatchSize * BeamSize, 1] after second loops
         log_probs, new_tokens = tf.reshape(log_probs, [batch_size, -1]), tf.reshape(new_tokens, [-1, 1])
-        is_end_sequences = tf.reshape(has_eos(decoder_input), tf.shape(log_probs))
+        is_end_sequences = tf.reshape(tf.repeat(has_eos(decoder_input), beam_size, axis=0), [batch_size, -1])
         log_probs = tf.where(is_end_sequences, 0.0, log_probs)
         log_probs += tf.cast(tf.repeat(log_perplexity, beam_size, axis=1), log_probs.dtype)
 
@@ -161,7 +161,7 @@ def beam_search(
 
         # [BatchSize * BeamSize, DecoderSequenceLength]
         decoder_input = tf.gather_nd(decoder_input, indices_for_decoder_input)
-        log_perplexity = tf.reshape(tf.gather_nd(log_probs, indices_for_decoder_input), [batch_size, beam_size ** 2])
+        log_perplexity = tf.reshape(tf.gather_nd(log_probs, indices_for_decoder_input), [batch_size, beam_size])
 
     decoder_input = tf.reshape(decoder_input, [batch_size, beam_size, -1])
     sequence_lengths = get_sequnce_lengths(decoder_input)
