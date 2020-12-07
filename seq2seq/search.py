@@ -35,10 +35,10 @@ def greedy_search(
         # [BatchSize, 1]
         log_probs, new_tokens = tf.math.top_k(output)
         log_probs, new_tokens = tf.cast(log_probs, log_perplexity.dtype), tf.cast(new_tokens, tf.int32)
-        log_perplexity += log_probs
+        log_perplexity = tf.where(is_ended, log_perplexity, log_perplexity + log_probs)
         new_tokens = tf.where(is_ended, 0, new_tokens)
         is_ended = tf.logical_or(is_ended, new_tokens == eos_id)
-        sequence_lengths = tf.where(new_tokens == eos_id, tf.shape(decoder_input)[1], sequence_lengths)
+        sequence_lengths = tf.where(new_tokens == eos_id, tf.shape(decoder_input)[1] + 1, sequence_lengths)
 
         # [BatchSize, DecoderSequenceLength + 1]
         decoder_input = tf.concat((decoder_input, new_tokens), axis=1)
@@ -107,11 +107,8 @@ def beam_search(
         # new_tokens: [BatchSize, 1]at first, [BatchSize * BeamSize, 1] after second loops
         log_probs, new_tokens = tf.reshape(log_probs, [batch_size, -1]), tf.reshape(new_tokens, [-1, 1])
         is_end_sequences = tf.reshape(has_eos(decoder_input), tf.shape(log_probs))
-        log_probs = tf.where(
-            is_end_sequences,
-            log_probs,
-            log_probs + tf.cast(tf.repeat(log_perplexity, beam_size, axis=1), log_probs.dtype),
-        )
+        log_probs = tf.where(is_end_sequences, 0.0, log_probs)
+        log_probs += tf.cast(tf.repeat(log_perplexity, beam_size, axis=1), log_probs.dtype)
 
         # Generate first token
         if tf.shape(decoder_input)[1] == 1:

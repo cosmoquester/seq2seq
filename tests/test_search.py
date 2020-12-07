@@ -14,7 +14,7 @@ def test_search():
         use_bidirectional=True,
     )
 
-    batch_size = 3
+    batch_size = 8
     encoder_sequence = 10
     decoder_sequence = 15
     bos_id = 2
