@@ -92,7 +92,10 @@ def beam_search(
         sequence_lengths = tf.map_fn(_to_sequence_lengths, decoder_input)
         return tf.reshape(sequence_lengths, original_shape[:-1])
 
-    while tf.shape(decoder_input)[1] < max_sequence_length:
+    def has_eos(decoder_input):
+        return tf.reduce_any(decoder_input == eos_id, axis=-1)
+
+    while tf.shape(decoder_input)[1] < max_sequence_length and tf.reduce_any(tf.logical_not(has_eos(decoder_input))):
         # [BatchSize, VocabSize]
         output = model((encoder_input, decoder_input))
         output = tf.nn.log_softmax(output, axis=1)
@@ -103,7 +106,12 @@ def beam_search(
         # log_probs: [BatchSize, BeamSize] at first, [BatchSize, BeamSize ** 2] after second loops
         # new_tokens: [BatchSize, 1]at first, [BatchSize * BeamSize, 1] after second loops
         log_probs, new_tokens = tf.reshape(log_probs, [batch_size, -1]), tf.reshape(new_tokens, [-1, 1])
-        log_probs += tf.cast(tf.repeat(log_perplexity, beam_size, axis=1), log_probs.dtype)
+        is_end_sequences = tf.reshape(has_eos(decoder_input), tf.shape(log_probs))
+        log_probs = tf.where(
+            is_end_sequences,
+            log_probs,
+            log_probs + tf.cast(tf.repeat(log_perplexity, beam_size, axis=1), log_probs.dtype),
+        )
 
         # Generate first token
         if tf.shape(decoder_input)[1] == 1:
@@ -141,7 +149,7 @@ def beam_search(
 
     decoder_input = tf.reshape(decoder_input, [batch_size, beam_size, -1])
     sequence_lengths = get_sequnce_lengths(decoder_input)
-    decoder_input = tf.where(tf.sequence_mask(sequence_lengths, max_sequence_length), decoder_input, pad_id)
+    decoder_input = tf.where(tf.sequence_mask(sequence_lengths, tf.reduce_max(sequence_lengths)), decoder_input, pad_id)
     perplexity = tf.pow(tf.exp(log_perplexity), tf.cast(-1 / sequence_lengths, log_perplexity.dtype))
 
     return decoder_input, perplexity
