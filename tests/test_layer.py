@@ -6,7 +6,7 @@ from seq2seq.layer import (
     PositionalEncoding,
     ScaledDotProductAttention,
     TransformerDecoderLayer,
-    TransformerEncoderLayer
+    TransformerEncoderLayer,
 )
 
 
@@ -75,9 +75,10 @@ def test_transformer_encoder_layer_shape():
     dim_feedforward = 128
 
     input_embedding = tf.random.normal((batch_size, sequence_length, dim_embedding))
+    attention_mask = tf.random.uniform((batch_size, sequence_length), 0, 2, tf.float32)
     encoder_layer = TransformerEncoderLayer(dim_embedding, num_heads, dim_feedforward)
 
-    output = encoder_layer(input_embedding)
+    output = encoder_layer(input_embedding, attention_mask)
     tf.debugging.assert_equal(tf.shape(output), [batch_size, sequence_length, dim_embedding])
 
 
@@ -92,6 +93,7 @@ def test_transformer_decoder_layer_shape():
     inputs = (
         tf.random.normal((batch_size, sequence_length, dim_embedding)),
         tf.random.normal((batch_size, sequence_length, encoder_dim_embedding)),
+        tf.random.uniform((batch_size, sequence_length), 0, 2, tf.float32),
     )
     decoder_layer = TransformerDecoderLayer(dim_embedding, num_heads, dim_feedforward)
 

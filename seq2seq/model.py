@@ -3,13 +3,88 @@ from typing import Dict, Optional, Tuple
 import tensorflow as tf
 from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, SimpleRNN
 
-from .layer import BahdanauAttention
+from .layer import BahdanauAttention, PositionalEncoding, TransformerDecoderLayer, TransformerEncoderLayer
 
 RNN_CELL_MAP: Dict[str, tf.keras.layers.Layer] = {
     "SimpleRNN": SimpleRNN,
     "LSTM": LSTM,
     "GRU": GRU,
 }
+
+
+class TransformerSeq2Seq(tf.keras.Model):
+    """
+    Seq2seq model using RNN cell.
+
+    Arguments:
+        cell_type: String, one of (SimpleRNN, LSTM, GRU).
+        vocab_size: Integer, the size of vocabulary.
+        hidden_dim: Integer, the hidden dimension size of SampleModel.
+        num_encoder_layers: Integer, the number of seq2seq encoder.
+        num_decoder_layers: Integer, the number of seq2seq decoder.
+        dropout: Float dropout rate
+        use_bidirectional: Boolean, whether use Bidirectional or not
+
+    Call arguments:
+        inputs: A tuple (encoder_tokens, decoder_tokens)
+            encoder_tokens: A 3D tensor, with shape of `[BatchSize, EncoderSequenceLength]`.
+                                all values are in [0, VocabSize).
+            decoder_tokens: A 3D tensor, with shape of `[BatchSize, DecoderSequenceLength]`.
+                                all values are in [0, VocabSize).
+            encoder_attention_mask: Optional, A 2D tensor, with shape of `[BatchSize, EncoderSequenceLength]` as float type tensor.
+            decoder_attention_mask: Optional, A 2D tensor, with shape of `[BatchSize, DecoderSequenceLength]` as float type tensor.
+        training: Python boolean indicating whether the layer should behave in
+            training mode or in inference mode. Only relevant when `dropout` or
+            `recurrent_dropout` is used.
+
+    Output Shape:
+        2D tensor with shape:
+            `[BatchSize, VocabSize]`
+    """
+
+    def __init__(
+        self,
+        vocab_size: int,
+        dim_embedding: int,
+        num_heads: int,
+        num_encoder_layers: int,
+        num_decoder_layers: int,
+        dim_feedfoward: int,
+        activation: str,
+        positional_max_sequence: int = 1024,
+        pad_id: int = 0,
+    ):
+        super(TransformerSeq2Seq, self).__init__()
+
+        self.embedding = Embedding(vocab_size, dim_embedding)
+        self.pos_encode = PositionalEncoding(dim_embedding, positional_max_sequence)
+        args = dim_embedding, num_heads, dim_feedfoward, activation
+        self.encoder = [TransformerEncoderLayer(*args, name=f"encoder_layer{i}") for i in range(num_encoder_layers)]
+        self.decoder = [TransformerDecoderLayer(*args, name=f"decoder_layer{i}") for i in range(num_encoder_layers)]
+        self.dense = Dense(vocab_size)
+        self.pad_id = pad_id
+
+    def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
+        if len(inputs) == 2:
+            encoder_tokens, decoder_tokens = inputs
+            encoder_attention_mask = tf.cast(encoder_tokens == self.pad_id, tf.float32)
+            decoder_attention_mask = tf.cast(decoder_tokens == self.pad_id, tf.float32)
+        else:
+            encoder_tokens, decoder_tokens, encoder_attention_mask, decoder_attention_mask = inputs
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        encoder_input = self.embedding(encoder_tokens)
+        decoder_input = self.embedding(decoder_tokens)
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        for encoder_layer in self.encoder:
+            encoder_input = encoder_layer(encoder_input, encoder_attention_mask)
+        for decoder_layer in self.decoder:
+            decoder_input = decoder_layer(decoder_input, encoder_input, decoder_attention_mask)
+
+        # [BatchSize, VocabSize]
+        output = self.dense(decoder_input[:, -1, :])
+        return output
 
 
 class RNNSeq2Seq(tf.keras.Model):
@@ -204,6 +279,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
 
 
 MODEL_MAP: Dict[str, tf.keras.Model] = {
+    "TransformerSeq2Seq": TransformerSeq2Seq,
     "RNNSeq2Seq": RNNSeq2Seq,
     "RNNSeq2SeqWithAttention": RNNSeq2SeqWithAttention,
 }
