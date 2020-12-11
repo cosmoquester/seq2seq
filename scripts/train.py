@@ -82,7 +82,7 @@ if __name__ == "__main__":
     dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
 
     if args.steps_per_epoch:
-        train_dataset.repeat()
+        train_dataset = train_dataset.repeat()
         logger.info("Repeat dataset")
 
     with strategy.scope():
