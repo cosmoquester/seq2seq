@@ -58,7 +58,7 @@ class PositionalEncoding(Layer):
     """
 
     def __init__(self, dim_embedding: int, positional_max_sequence: int = 1024, **kwargs):
-        super(PositionalEncoding, self).__init__(**kwargs)
+        super(PositionalEncoding, self).__init__(trainable=False, **kwargs)
 
         angles = 1 / np.power(10000, (2 * (np.arange(dim_embedding) // 2)) / dim_embedding)
         angles = angles * np.arange(positional_max_sequence)[:, np.newaxis]
@@ -67,6 +67,9 @@ class PositionalEncoding(Layer):
         angles[:, 1::2] = np.cos(angles[:, 1::2])
 
         self.pos_encode = tf.cast(angles[np.newaxis, ...], tf.float32)
+
+    def count_params(self):
+        return 0
 
     def call(self, embedding: tf.Tensor):
         sequence_length = tf.shape(embedding)[1]
@@ -84,7 +87,7 @@ class ScaledDotProductAttention(Layer):
         query: [BatchSize, SequenceLength, DimQuery-Key]
         key: [BatchSize, SequenceLength, DimQuery-Key]
         value: [BatchSize, SequenceLength, DimValue]
-        mask: [BatchSize, SequenceLength, SequenceLength]
+        mask: [BatchSize, SequenceLength]
 
     Output Shape:
         3D tensor with shape:
@@ -105,10 +108,11 @@ class ScaledDotProductAttention(Layer):
         value = self.Wv(value)
 
         # [BatchSize, SequenceLength, SequenceLength]
-        scaled_attention_logits = tf.matmul(query, key, transpose_b=True) / self.divider
+        scaled_attention_logits = tf.matmul(query, key, transpose_b=True) / tf.cast(self.divider, key.dtype)
 
         if mask is not None:
-            scaled_attention_logits += mask * -1e9
+            mask = mask[:, :, tf.newaxis]
+            scaled_attention_logits += tf.cast(mask * -1e9, scaled_attention_logits.dtype)
 
         attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
         output = tf.matmul(attention_weights, value)
@@ -145,12 +149,13 @@ class MultiHeadAttention(Layer):
         self.dense = Dense(dim_embedding)
 
     def call(self, query, key, value, mask=None):
-        batch_size, sequence_length, _ = tf.shape(value)
+        batch_size, sequence_length, _ = tf.unstack(tf.shape(value), 3)
 
-        outputs = tf.constant((), tf.float32, [batch_size, sequence_length, 0])
+        # outputs = tf.constant([], tf.float32, [batch_size, sequence_length, 0])
+        outputs = tf.reshape(tf.constant([]), [batch_size, sequence_length, 0])
         for attention in self.attentions:
             output = attention(query, key, value, mask)
-            outputs = tf.concat([outputs, output], axis=-1)
+            outputs = tf.concat([tf.cast(outputs, output.dtype), output], axis=-1)
 
         # [BatchSize, SequenceLength, DimEmbedding]
         outputs = self.dense(outputs)
