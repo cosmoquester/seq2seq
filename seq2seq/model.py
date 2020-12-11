@@ -1,13 +1,14 @@
 from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
+from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, SimpleRNN
 
 from .layer import BahdanauAttention
 
 RNN_CELL_MAP: Dict[str, tf.keras.layers.Layer] = {
-    "SimpleRNN": tf.keras.layers.SimpleRNN,
-    "LSTM": tf.keras.layers.LSTM,
-    "GRU": tf.keras.layers.GRU,
+    "SimpleRNN": SimpleRNN,
+    "LSTM": LSTM,
+    "GRU": GRU,
 }
 
 
@@ -53,8 +54,8 @@ class RNNSeq2Seq(tf.keras.Model):
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
-        self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
-        self.dropout = tf.keras.layers.Dropout(dropout)
+        self.embedding = Embedding(vocab_size, hidden_dim)
+        self.dropout = Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
             RNN_CELL_MAP[cell_type](
@@ -81,9 +82,9 @@ class RNNSeq2Seq(tf.keras.Model):
         ]
 
         if use_bidirectional:
-            self.encoder = [tf.keras.layers.Bidirectional(cell) for cell in self.encoder]
-            self.decoder = [tf.keras.layers.Bidirectional(cell) for cell in self.decoder]
-        self.dense = tf.keras.layers.Dense(vocab_size)
+            self.encoder = [Bidirectional(cell, name=f"bi_encoder_layer{i}") for i, cell in enumerate(self.encoder)]
+            self.decoder = [Bidirectional(cell, name=f"bi_decoder_layer{i}") for i, cell in enumerate(self.decoder)]
+        self.dense = Dense(vocab_size)
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs
@@ -146,8 +147,8 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
-        self.embedding = tf.keras.layers.Embedding(vocab_size, hidden_dim)
-        self.dropout = tf.keras.layers.Dropout(dropout)
+        self.embedding = Embedding(vocab_size, hidden_dim)
+        self.dropout = Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
             RNN_CELL_MAP[cell_type](
@@ -174,11 +175,11 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         ]
 
         if use_bidirectional:
-            self.encoder = [tf.keras.layers.Bidirectional(cell) for cell in self.encoder]
-            self.decoder = [tf.keras.layers.Bidirectional(cell) for cell in self.decoder]
+            self.encoder = [Bidirectional(cell, name=f"bi_encoder_layer{i}") for i, cell in enumerate(self.encoder)]
+            self.decoder = [Bidirectional(cell, name=f"bi_decoder_layer{i}") for i, cell in enumerate(self.decoder)]
 
         self.attention = BahdanauAttention(hidden_dim)
-        self.dense = tf.keras.layers.Dense(vocab_size)
+        self.dense = Dense(vocab_size)
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs

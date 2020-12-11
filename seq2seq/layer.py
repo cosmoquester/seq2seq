@@ -1,7 +1,9 @@
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.layers import Dense, Layer, LayerNormalization
 
 
-class BahdanauAttention(tf.keras.layers.Layer):
+class BahdanauAttention(Layer):
     """
     BahdanauAttention for seq2seq
 
@@ -18,14 +20,14 @@ class BahdanauAttention(tf.keras.layers.Layer):
             `[BatchSize, HiddenDim]`
     """
 
-    def __init__(self, hidden_dim):
-        super(BahdanauAttention, self).__init__()
+    def __init__(self, hidden_dim, **kwargs):
+        super(BahdanauAttention, self).__init__(**kwargs)
 
-        self.Wh = tf.keras.layers.Dense(hidden_dim, name="hidden_converter")
-        self.Ws = tf.keras.layers.Dense(hidden_dim, name="value_converter")
-        self.V = tf.keras.layers.Dense(1)
+        self.Wh = Dense(hidden_dim, name="hidden_converter")
+        self.Ws = Dense(hidden_dim, name="value_converter")
+        self.V = Dense(1)
 
-    def call(self, decoder_hidden, encoder_hiddens):
+    def call(self, decoder_hidden: tf.Tensor, encoder_hiddens: tf.Tensor):
         # [BatchSize, HiddenDim]
         query = self.Wh(decoder_hidden)
         # [BatchSize, SequenceLength, HiddenDim]
@@ -38,3 +40,205 @@ class BahdanauAttention(tf.keras.layers.Layer):
         # [BatchSize, HiddenDim]
         context = tf.reduce_sum(attention * encoder_hiddens, axis=1)
         return context
+
+
+class PositionalEncoding(Layer):
+    """
+    Positional encoding for transformer
+
+    Arguments:
+        dim_embedding: Integer, the embedding dimension of transformer.
+        positional_max_sequence: Integer, positional encoding max sequence.
+
+    Call arguments:
+        embedding: [BatchSize, SequenceLength, HiddenDim]
+
+    Output Shape:
+        same as call argument `embedding`
+    """
+
+    def __init__(self, dim_embedding: int, positional_max_sequence: int = 1024, **kwargs):
+        super(PositionalEncoding, self).__init__(**kwargs)
+
+        angles = 1 / np.power(10000, (2 * (np.arange(dim_embedding) // 2)) / dim_embedding)
+        angles = angles * np.arange(positional_max_sequence)[:, np.newaxis]
+
+        angles[:, 0::2] = np.sin(angles[:, 0::2])
+        angles[:, 1::2] = np.cos(angles[:, 1::2])
+
+        self.pos_encode = tf.cast(angles[np.newaxis, ...], tf.float32)
+
+    def call(self, embedding: tf.Tensor):
+        sequence_length = tf.shape(embedding)[1]
+        return embedding + self.pos_encode[:, :sequence_length, :]
+
+
+class ScaledDotProductAttention(Layer):
+    """
+    Dot product attention for multihead attention.
+
+    Arguments:
+        dim_head: embedding dimension for a head, calculated as dim_embedding / num_heads.
+
+    Call Arguemnts:
+        query: [BatchSize, SequenceLength, DimQuery-Key]
+        key: [BatchSize, SequenceLength, DimQuery-Key]
+        value: [BatchSize, SequenceLength, DimValue]
+        mask: [BatchSize, SequenceLength, SequenceLength]
+
+    Output Shape:
+        3D tensor with shape:
+            `[BatchSize, SequenceLength, DimValue]
+    """
+
+    def __init__(self, dim_head, **kwargs):
+        super(ScaledDotProductAttention, self).__init__(**kwargs)
+
+        self.Wq = Dense(dim_head, name="query")
+        self.Wk = Dense(dim_head, name="key")
+        self.Wv = Dense(dim_head, name="value")
+        self.divider = tf.math.sqrt(dim_head)
+
+    def call(self, query, key, value, mask=None):
+        query = self.Wq(query)
+        key = self.Wk(key)
+        value = self.Wv(value)
+
+        # [BatchSize, SequenceLength, SequenceLength]
+        scaled_attention_logits = tf.matmul(query, key, transpose_b=True) / self.divider
+
+        if mask is not None:
+            scaled_attention_logits += mask * -1e9
+
+        attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
+        output = tf.matmul(attention_weights, value)
+        return output
+
+
+class MultiHeadAttention(Layer):
+    """
+    Multihead attention for transformer.
+
+    Arguments:
+        dim_embedding: Integer, model internal dimension.
+        num_heads: Integer, the number of heads.
+
+    Call Arguments:
+        query: [BatchSize, SequenceLength, DimEmbedding]
+        key: [BatchSize, SequenceLength, DimEmbedding]
+        value: [BatchSize, SequenceLength, DimEmbedding]
+        mask: [BatchSize, SequenceLength, SequenceLength]
+
+    Output Shape:
+        3D tensor with shape:
+            `[BatchSize, SequenceLength, DimEmbedding]
+    """
+
+    def __init__(self, dim_embedding, num_heads, **kwargs):
+        super(MultiHeadAttention, self).__init__(**kwargs)
+        assert dim_embedding % num_heads == 0, "`dim_embedding` should be divided by `num_heads`"
+
+        self.attentions = [
+            ScaledDotProductAttention(dim_embedding // num_heads, name=f"scaled_dot_product_attention{i}")
+            for i in range(1, num_heads + 1)
+        ]
+        self.dense = Dense(dim_embedding)
+
+    def call(self, query, key, value, mask=None):
+        batch_size, sequence_length, _ = tf.shape(value)[1]
+
+        outputs = tf.constant((), tf.float32, [batch_size, sequence_length, 0])
+        for attention in self.attentions:
+            output = attention(query, key, value, mask)
+            outputs = tf.concat([outputs, output], axis=0)
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        outputs = self.dense(outputs)
+        return outputs
+
+
+class TransformerEncoderLayer(Layer):
+    """
+    Transformer encoder layer.
+
+    Arguments:
+        dim_embedding: Integer, model internal dimension.
+        num_heads: Integer, the number of heads.
+        dim_feedfoward: Integer, feedforward dimension.
+        activation: Integer, feedforward activation function.
+
+    Call Arguments:
+        input_embedding: [BatchSize, SequenceLength, DimEmbedding]
+        mask: [BatchSize, SequenceLength]
+
+    Output Shape:
+        3D tensor with shape:
+            `[BatchSize, SequenceLength, DimEmbedding]
+    """
+
+    def __init__(self, dim_embedding, num_heads, dim_feedfoward, activation="relu", **kwargs):
+        super(TransformerEncoderLayer, self).__init__(**kwargs)
+
+        self.multihead_attention = MultiHeadAttention(dim_embedding, num_heads)
+        self.attention_layernorm = LayerNormalization(name="attention_layernorm")
+        self.feedfoward_in = Dense(dim_feedfoward, activation=activation, name="feedforward_in")
+        self.feedfoward_out = Dense(dim_embedding, name="feedforward_out")
+        self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
+
+    def call(self, input_embedding, mask=None):
+        # [BatchSize, SequenceLength, DimEmbedding]
+        attention_output = self.multihead_attention(input_embedding, input_embedding, input_embedding, mask)
+        normalized_output = self.attention_layernorm(input_embedding + attention_output)
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        output = self.feedfoward_out(self.feedfoward_in(normalized_output))
+        output = self.feedforward_layernorm(output + normalized_output)
+
+        return output
+
+
+class TransformerDecoderLayer(Layer):
+    """
+    Transformer decoder layer.
+
+    Arguments:
+        dim_embedding: Integer, model internal dimension.
+        num_heads: Integer, the number of heads.
+        dim_feedfoward: Integer, feedforward dimension.
+        activation: Integer, feedforward activation function.
+
+    Call Arguments:
+        input_embedding: [BatchSize, SequenceLength, DimEmbedding]
+        encoder_output: [BatchSize, SequenceLength, DimEmbedding]
+        mask: [BatchSize, SequenceLength]
+
+    Output Shape:
+        3D tensor with shape:
+            `[BatchSize, SequenceLength, DimEmbedding]
+    """
+
+    def __init__(self, dim_embedding, num_heads, dim_feedfoward, activation="relu", **kwargs):
+        super(TransformerEncoderLayer, self).__init__(**kwargs)
+
+        self.self_attention = MultiHeadAttention(dim_embedding, num_heads)
+        self.attention_layernorm = LayerNormalization(name="attention_layernorm")
+        self.encoder_decoder_attention = MultiHeadAttention(dim_embedding, num_heads)
+        self.encoder_decoder_layernorm = LayerNormalization(name="attention_layernorm")
+        self.feedfoward_in = Dense(dim_feedfoward, activation=activation, name="feedforward_in")
+        self.feedfoward_out = Dense(dim_embedding, name="feedforward_out")
+        self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
+
+    def call(self, input_embedding, encoder_output, mask=None):
+        # [BatchSize, SequenceLength, DimEmbedding]
+        attention_output = self.self_attention(input_embedding, input_embedding, input_embedding, mask)
+        normalized_output = self.attention_layernorm(input_embedding + attention_output)
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        attention_output = self.encoder_decoder_attention(encoder_output, encoder_output, normalized_output)
+        normalized_output = self.encoder_decoder_layernorm(attention_output + normalized_output)
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        output = self.feedfoward_out(self.feedfoward_in(normalized_output))
+        output = self.feedforward_layernorm(output + normalized_output)
+
+        return output
