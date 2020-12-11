@@ -51,7 +51,7 @@ class PositionalEncoding(Layer):
         positional_max_sequence: Integer, positional encoding max sequence.
 
     Call arguments:
-        embedding: [BatchSize, SequenceLength, HiddenDim]
+        embedding: [BatchSize, SequenceLength, DimEmbedding]
 
     Output Shape:
         same as call argument `embedding`
@@ -97,7 +97,7 @@ class ScaledDotProductAttention(Layer):
         self.Wq = Dense(dim_head, name="query")
         self.Wk = Dense(dim_head, name="key")
         self.Wv = Dense(dim_head, name="value")
-        self.divider = tf.math.sqrt(dim_head)
+        self.divider = tf.math.sqrt(tf.cast(dim_head, tf.float32))
 
     def call(self, query, key, value, mask=None):
         query = self.Wq(query)
@@ -145,12 +145,12 @@ class MultiHeadAttention(Layer):
         self.dense = Dense(dim_embedding)
 
     def call(self, query, key, value, mask=None):
-        batch_size, sequence_length, _ = tf.shape(value)[1]
+        batch_size, sequence_length, _ = tf.shape(value)
 
         outputs = tf.constant((), tf.float32, [batch_size, sequence_length, 0])
         for attention in self.attentions:
             output = attention(query, key, value, mask)
-            outputs = tf.concat([outputs, output], axis=0)
+            outputs = tf.concat([outputs, output], axis=-1)
 
         # [BatchSize, SequenceLength, DimEmbedding]
         outputs = self.dense(outputs)
@@ -218,7 +218,7 @@ class TransformerDecoderLayer(Layer):
     """
 
     def __init__(self, dim_embedding, num_heads, dim_feedfoward, activation="relu", **kwargs):
-        super(TransformerEncoderLayer, self).__init__(**kwargs)
+        super(TransformerDecoderLayer, self).__init__(**kwargs)
 
         self.self_attention = MultiHeadAttention(dim_embedding, num_heads)
         self.attention_layernorm = LayerNormalization(name="attention_layernorm")
