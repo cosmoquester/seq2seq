@@ -73,10 +73,11 @@ def test_transformer_encoder_layer_shape():
     dim_embedding = 48
     num_heads = 2
     dim_feedforward = 128
+    dropout = 0.1
 
     input_embedding = tf.random.normal((batch_size, sequence_length, dim_embedding))
     attention_mask = tf.random.uniform((batch_size, sequence_length), 0, 2, tf.float32)
-    encoder_layer = TransformerEncoderLayer(dim_embedding, num_heads, dim_feedforward)
+    encoder_layer = TransformerEncoderLayer(dim_embedding, num_heads, dim_feedforward, dropout)
 
     output = encoder_layer(input_embedding, attention_mask)
     tf.debugging.assert_equal(tf.shape(output), [batch_size, sequence_length, dim_embedding])
@@ -89,13 +90,14 @@ def test_transformer_decoder_layer_shape():
     dim_embedding = 48
     num_heads = 2
     dim_feedforward = 128
+    dropout = 0.1
 
     inputs = (
         tf.random.normal((batch_size, sequence_length, dim_embedding)),
         tf.random.normal((batch_size, sequence_length, encoder_dim_embedding)),
         tf.random.uniform((batch_size, sequence_length), 0, 2, tf.float32),
     )
-    decoder_layer = TransformerDecoderLayer(dim_embedding, num_heads, dim_feedforward)
+    decoder_layer = TransformerDecoderLayer(dim_embedding, num_heads, dim_feedforward, dropout)
 
     output = decoder_layer(*inputs)
     tf.debugging.assert_equal(tf.shape(output), [batch_size, sequence_length, dim_embedding])

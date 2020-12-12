@@ -5,6 +5,7 @@
     "num_encoder_layers": 4,
     "num_decoder_layers": 4,
     "dim_feedfoward": 512,
+    "dropout": 0.1,
     "activation": "relu",
     "positional_max_sequence": 1024,
     "pad_id": 0

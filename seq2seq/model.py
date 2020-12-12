@@ -19,11 +19,15 @@ class TransformerSeq2Seq(tf.keras.Model):
     Arguments:
         cell_type: String, one of (SimpleRNN, LSTM, GRU).
         vocab_size: Integer, the size of vocabulary.
-        hidden_dim: Integer, the hidden dimension size of SampleModel.
-        num_encoder_layers: Integer, the number of seq2seq encoder.
-        num_decoder_layers: Integer, the number of seq2seq decoder.
-        dropout: Float dropout rate
-        use_bidirectional: Boolean, whether use Bidirectional or not
+        dim_embedding: Integer, model internal dimension.
+        num_heads: Integer, the number of heads.
+        num_encoder_layers: Integer, the number of seq2seq encoder layers.
+        num_decoder_layers: Integer, the number of seq2seq decoder layers.
+        dim_feedfoward: Integer, feedforward dimension.
+        activation: Integer, feedforward activation function.
+        dropout: Float dropout rate.
+        positional_max_sequence: Integer, max sequence to pos encode.
+        pad_id: Integer, the id of padding token.
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -51,6 +55,7 @@ class TransformerSeq2Seq(tf.keras.Model):
         num_decoder_layers: int,
         dim_feedfoward: int,
         activation: str,
+        dropout: float,
         positional_max_sequence: int = 1024,
         pad_id: int = 0,
     ):
@@ -58,7 +63,8 @@ class TransformerSeq2Seq(tf.keras.Model):
 
         self.embedding = Embedding(vocab_size, dim_embedding)
         self.pos_encode = PositionalEncoding(dim_embedding, positional_max_sequence)
-        args = dim_embedding, num_heads, dim_feedfoward, activation
+        self.dropout = Dropout(dropout)
+        args = dim_embedding, num_heads, dim_feedfoward, dropout, activation
         self.encoder = [TransformerEncoderLayer(*args, name=f"encoder_layer{i}") for i in range(num_encoder_layers)]
         self.decoder = [TransformerDecoderLayer(*args, name=f"decoder_layer{i}") for i in range(num_encoder_layers)]
         self.dense = Dense(vocab_size)
@@ -73,8 +79,8 @@ class TransformerSeq2Seq(tf.keras.Model):
             encoder_tokens, decoder_tokens, encoder_attention_mask, decoder_attention_mask = inputs
 
         # [BatchSize, SequenceLength, DimEmbedding]
-        encoder_input = self.embedding(encoder_tokens)
-        decoder_input = self.embedding(decoder_tokens)
+        encoder_input = self.dropout(self.pos_encode(self.embedding(encoder_tokens)))
+        decoder_input = self.dropout(self.pos_encode(self.embedding(decoder_tokens)))
 
         # [BatchSize, SequenceLength, DimEmbedding]
         for encoder_layer in self.encoder:
