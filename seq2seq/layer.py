@@ -109,7 +109,7 @@ class ScaledDotProductAttention(Layer):
 
         if mask is not None:
             mask = mask[:, :, tf.newaxis]
-            scaled_attention_logits += tf.cast(mask * -1e9, scaled_attention_logits.dtype)
+            scaled_attention_logits += tf.cast(mask * -1e4, scaled_attention_logits.dtype)
 
         attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
         output = tf.matmul(attention_weights, value)
