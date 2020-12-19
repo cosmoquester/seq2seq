@@ -38,6 +38,28 @@ other_settings.add_argument("--auto-encoding", action="store_true", help="train 
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
+
+def sparse_categorical_crossentropy(y_true, y_pred):
+    pred_nan = tf.math.is_nan(y_pred)
+    if tf.math.reduce_any(pred_nan):
+        tf.print(
+            "\nWarning:",
+            "The",
+            tf.size(tf.where(pred_nan)),
+            "number of output values are Nan!\n",
+            output_stream=sys.stderr,
+        )
+
+    loss = tf.losses.sparse_categorical_crossentropy(y_true, y_pred, True)
+    is_nan = tf.math.is_nan(loss)
+    if tf.math.reduce_any(is_nan):
+        tf.print(
+            "\nWarning:", "The", tf.size(tf.where(is_nan)), "number of losses are Nan!\n", output_stream=sys.stderr
+        )
+        loss = tf.boolean_mask(loss, tf.logical_not(is_nan))
+    return loss
+
+
 if __name__ == "__main__":
     args = parser.parse_args()
     strategy = get_device_strategy(args.device)
@@ -102,7 +124,7 @@ if __name__ == "__main__":
         # Model Compile
         model.compile(
             optimizer=tf.optimizers.Adam(args.learning_rate),
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            loss=sparse_categorical_crossentropy,
             metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
         )
         logger.info("Model compiling complete")
