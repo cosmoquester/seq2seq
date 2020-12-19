@@ -19,7 +19,6 @@ file_paths.add_argument("--model-name", type=str, default="RNNSeq2SeqWithAttenti
 file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
 file_paths.add_argument("--dataset-path", required=True, help="a tsv file or multiple files ex) *.tsv")
 file_paths.add_argument("--model-path", type=str, required=True, help="pretrained model checkpoint")
-file_paths.add_argument("--output-path", default="output", help="output file path to save generated sentences")
 file_paths.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
 
 inference_parameters = parser.add_argument_group("Inference Parameters")
@@ -32,7 +31,6 @@ inference_parameters.add_argument("--beam-size", type=int, default=0, help="not 
 
 other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
-other_settings.add_argument("--save-pair", action="store_true", help="save result as the pairs of original and decoded sentences")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
