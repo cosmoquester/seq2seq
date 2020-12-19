@@ -8,7 +8,7 @@ import tensorflow_text as text
 
 from seq2seq.data import get_dataset
 from seq2seq.model import MODEL_MAP
-from seq2seq.search import greedy_search
+from seq2seq.search import beam_search, greedy_search
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
 # fmt: off
@@ -25,6 +25,7 @@ inference_parameters = parser.add_argument_group("Inference Parameters")
 inference_parameters.add_argument("--batch-size", type=int, default=512)
 inference_parameters.add_argument("--prefetch-buffer-size", type=int, default=100000)
 inference_parameters.add_argument("--max-sequence-length", type=int, default=256)
+inference_parameters.add_argument("--beam-size", type=int, default=0, help="not given, use greedy search else beam search with this value as beam size")
 
 other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
@@ -70,7 +71,11 @@ if __name__ == "__main__":
     bos_id, eos_id = tokenizer.tokenize("").numpy().tolist()
 
     for batch_input in dataset:
-        batch_output, _ = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length).numpy()
+        if args.beam_size > 0:
+            batch_output = beam_search(model, batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length)
+            batch_output = batch_output[0][:, 0, :].numpy()
+        else:
+            batch_output = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)[0].numpy()
         outputs.extend(batch_output)
     outputs = [tokenizer.detokenize(output).numpy().decode("UTF8") for output in outputs]
     logger.info("Ended Inference, Start to save...")

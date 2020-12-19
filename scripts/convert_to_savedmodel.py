@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--model-name", type=str, default="RNNSeq2Seq", help="Seq2seq model name")
 parser.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
 parser.add_argument("--model-weight-path", type=str, required=True, help="Model weight file path saved in training")
-parser.add_argument("--spm-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model", help="spm tokenizer model path")
+parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model", help="sp tokenizer model path")
 parser.add_argument("--output-path", type=str, default="seq2seq-model/1", help="Savedmodel path")
 
 search = parser.add_argument_group("Search Method Configs")
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     model.load_weights(args.model_weight_path)
     logger.info("Loaded weights of model")
 
-    with open(args.spm_model_path, "rb") as f:
+    with open(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
     bos_id, eos_id = tokenizer.tokenize("")
     logger.info("Loaded sentencepiece tokenizer")
@@ -46,8 +46,7 @@ if __name__ == "__main__":
         decoded_tokens, perplexity = beam_search(
             model, tokens, beam_size, bos_id, eos_id, args.max_sequence_length, args.pad_id, args.alpha, args.beta
         )
-        sentences = tokenizer.detokenize(tf.reshape((decoded_tokens), [batch_size * beam_size, -1]))
-        sentences = tf.reshape(sentences, [batch_size, beam_size, -1])
+        sentences = tokenizer.detokenize(decoded_tokens).to_tensor()
         return {"sentences": sentences, "perplexity": perplexity}
 
     @tf.function(input_signature=[tf.TensorSpec([None], tf.string)])

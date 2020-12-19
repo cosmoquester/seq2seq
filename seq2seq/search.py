@@ -185,7 +185,7 @@ def beam_search(
 
     decoder_input = tf.reshape(decoder_input, [batch_size, beam_size, -1])
     sequence_lengths = get_sequnce_lengths(decoder_input)
-    decoder_input = tf.where(tf.sequence_mask(sequence_lengths, tf.reduce_max(sequence_lengths)), decoder_input, pad_id)
+    decoder_input = tf.where(tf.sequence_mask(sequence_lengths, tf.shape(decoder_input)[2]), decoder_input, pad_id)
     perplexity = tf.pow(tf.exp(log_perplexity), tf.cast(-1 / sequence_lengths, log_perplexity.dtype))
 
     return decoder_input, perplexity
