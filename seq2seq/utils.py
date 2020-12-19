@@ -12,7 +12,7 @@ def learning_rate_scheduler(num_epochs, max_learning_rate, min_learninga_rate=1e
     lr_delta = (max_learning_rate - min_learninga_rate) / num_epochs
 
     def _scheduler(epoch, lr):
-        return lr - lr_delta
+        return max_learning_rate - lr_delta * epoch
 
     return _scheduler
 
