@@ -70,7 +70,7 @@ if __name__ == "__main__":
     bos_id, eos_id = tokenizer.tokenize("").numpy().tolist()
 
     for batch_input in dataset:
-        batch_output, _ = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length).numpy()
+        batch_output = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)[0].numpy()
         outputs.extend(batch_output)
     outputs = [tokenizer.detokenize(output).numpy().decode("UTF8") for output in outputs]
     logger.info("Ended Inference, Start to save...")
