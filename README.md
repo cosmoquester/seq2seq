@@ -168,6 +168,9 @@ Inference Parameters:
   --batch-size BATCH_SIZE
   --prefetch-buffer-size PREFETCH_BUFFER_SIZE
   --max-sequence-length MAX_SEQUENCE_LENGTH
+  --beam-size BEAM_SIZE
+                        not given, use greedy search else beam search with
+                        this value as beam size
 
 Other settings:
   --disable-mixed-precision
