@@ -1,9 +1,13 @@
 import argparse
 import json
+import os
+import random
 from functools import partial
 
 import tensorflow as tf
 import tensorflow_text as text
+from tensorflow.python.framework import tensor_util
+from tensorflow_serving.apis import predict_pb2, prediction_log_pb2
 
 from seq2seq.model import MODEL_MAP
 from seq2seq.search import beam_search, greedy_search
@@ -23,6 +27,35 @@ search.add_argument("--max-sequence-length", type=int, default=128, help="Max nu
 search.add_argument("--alpha", type=int, default=1, help="length penalty control variable when beam searching")
 search.add_argument("--beta", type=int, default=32, help="length penalty control variable when beam searching")
 # fmt: on
+
+
+def make_warmup_record(inputs, model_name, signature_name="serving_default"):
+    predict_request = predict_pb2.PredictRequest()
+    predict_request.model_spec.name = model_name
+    predict_request.model_spec.signature_name = signature_name
+
+    for key, value in inputs.items():
+        predict_request.inputs[key].CopyFrom(tf.make_tensor_proto(value, get_tf_datatype(value)))
+
+    log = prediction_log_pb2.PredictionLog(predict_log=prediction_log_pb2.PredictLog(request=predict_request))
+    return log.SerializeToString()
+
+
+def get_tf_datatype(data):
+    type_map = {int: tf.int32, float: tf.float32, str: tf.string}
+    data_type = type(data)
+
+    if data_type == list:
+        return get_tf_datatype(data[0])
+    if data_type in type_map:
+        return type_map[data_type]
+    raise RuntimeError(f"Data type:{type(data)} not supported!")
+
+
+def random_string(length=16):
+    string_ords = [random.randint(ord("가"), ord("힣")) for _ in range(length)]
+    return "".join([chr(token_ord) for token_ord in string_ords])
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -63,3 +96,16 @@ if __name__ == "__main__":
         signatures={"serving_default": generate_with_greedy_search, "beam_search": generate_with_beam_search},
     )
     logger.info(f"Saved model to {args.output_path}")
+
+    warmup_record_path = os.path.join(args.output_path, "assets.extra", "tf_serving_warmup_requests")
+    os.makedirs(os.path.dirname(warmup_record_path), exist_ok=True)
+    with tf.io.TFRecordWriter(warmup_record_path) as writer:
+        model_name = os.path.dirname(args.output_path)
+        logger.info(f"Make warmup record with model name is {model_name}")
+        writer.write(make_warmup_record({"texts": [random_string() for _ in range(5)]}, model_name))
+        writer.write(
+            make_warmup_record(
+                {"texts": [random_string() for _ in range(5)], "beam_size": 3}, model_name, "beam_search"
+            )
+        )
+    logger.info(f"Made warmup record and saved to {warmup_record_path}")
