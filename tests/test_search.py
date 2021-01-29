@@ -12,7 +12,6 @@ def test_search():
         num_encoder_layers=1,
         num_decoder_layers=1,
         dropout=0.0,
-        use_bidirectional=True,
     )
 
     batch_size = 8

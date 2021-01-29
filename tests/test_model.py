@@ -18,7 +18,6 @@ def test_model():
         num_encoder_layers=2,
         num_decoder_layers=2,
         dropout=0.15,
-        use_bidirectional=True,
     )
     inputs = (
         tf.random.uniform((batch_size, encoder_sequence), maxval=vocab_size),
