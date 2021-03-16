@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
-from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, SimpleRNN
+from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, SimpleRNN, Masking
 
 from .layer import BahdanauAttention, PositionalEncoding, TransformerDecoderLayer, TransformerEncoderLayer
 
@@ -61,7 +61,8 @@ class TransformerSeq2Seq(tf.keras.Model):
     ):
         super(TransformerSeq2Seq, self).__init__()
 
-        self.embedding = Embedding(vocab_size, dim_embedding, mask_zero=True)
+        self.embedding = Embedding(vocab_size, dim_embedding)
+        self.pad_masking = Masking(pad_id)
         self.pos_encode = PositionalEncoding(dim_embedding, positional_max_sequence)
         self.dropout = Dropout(dropout)
         args = dim_embedding, num_heads, dim_feedfoward, dropout, activation
@@ -79,8 +80,12 @@ class TransformerSeq2Seq(tf.keras.Model):
             encoder_tokens, decoder_tokens, encoder_attention_mask, decoder_attention_mask = inputs
 
         # [BatchSize, SequenceLength, DimEmbedding]
-        encoder_input = self.dropout(self.pos_encode(self.embedding(encoder_tokens)))
-        decoder_input = self.dropout(self.pos_encode(self.embedding(decoder_tokens)))
+        encoder_input = self.pad_masking(self.embedding(encoder_tokens))
+        decoder_input = self.pad_masking(self.embedding(decoder_tokens))
+
+        # [BatchSize, SequenceLength, DimEmbedding]
+        encoder_input = self.dropout(self.pos_encode(encoder_input))
+        decoder_input = self.dropout(self.pos_encode(decoder_input))
 
         # [BatchSize, SequenceLength, DimEmbedding]
         for encoder_layer in self.encoder:
@@ -104,6 +109,7 @@ class RNNSeq2Seq(tf.keras.Model):
         num_encoder_layers: Integer, the number of seq2seq encoder.
         num_decoder_layers: Integer, the number of seq2seq decoder.
         dropout: Float dropout rate
+        pad_id: Integer, the id of padding token.
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -128,12 +134,14 @@ class RNNSeq2Seq(tf.keras.Model):
         num_encoder_layers,
         num_decoder_layers,
         dropout,
+        pad_id=0,
     ):
         super(RNNSeq2Seq, self).__init__()
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
-        self.embedding = Embedding(vocab_size, hidden_dim, mask_zero=True)
+        self.embedding = Embedding(vocab_size, hidden_dim)
+        self.pad_masking = Masking(pad_id)
         self.dropout = Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
@@ -200,7 +208,8 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         hidden_dim: Integer, the hidden dimension size of SampleModel.
         num_encoder_layers: Integer, the number of seq2seq encoder.
         num_decoder_layers: Integer, the number of seq2seq decoder.
-        dropout: Float, dropout rate
+        dropout: Float, dropout rate.
+        pad_id: Integer, the id of padding token.
 
     Call arguments:
         inputs: A tuple (encoder_tokens, decoder_tokens)
@@ -225,12 +234,14 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         num_encoder_layers,
         num_decoder_layers,
         dropout,
+        pad_id=0,
     ):
         super(RNNSeq2SeqWithAttention, self).__init__()
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
-        self.embedding = Embedding(vocab_size, hidden_dim, mask_zero=True)
+        self.embedding = Embedding(vocab_size, hidden_dim)
+        self.pad_masking = Masking(pad_id)
         self.dropout = Dropout(dropout)
         self.encoder = [
             # SimpleRNN, LSTM, GRU
@@ -266,8 +277,8 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         encoder_tokens, decoder_tokens = inputs
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.dropout(self.embedding(encoder_tokens))
-        decoder_input = self.dropout(self.embedding(decoder_tokens))
+        encoder_input = self.dropout(self.pad_masking(self.embedding(encoder_tokens)))
+        decoder_input = self.dropout(self.pad_masking(self.embedding(decoder_tokens)))
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
