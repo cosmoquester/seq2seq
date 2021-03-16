@@ -146,7 +146,7 @@ class MultiHeadAttention(Layer):
         self.dense = Dense(dim_embedding)
 
     def call(self, query, key, value, mask=None):
-        batch_size, sequence_length, _ = tf.unstack(tf.shape(value), 3)
+        batch_size, sequence_length, _ = tf.unstack(tf.shape(query), 3)
 
         # outputs = tf.constant([], tf.float32, [batch_size, sequence_length, 0])
         outputs = tf.reshape(tf.constant([]), [batch_size, sequence_length, 0])
@@ -240,7 +240,7 @@ class TransformerDecoderLayer(Layer):
         normalized_output = self.attention_layernorm(input_embedding + self.dropout(attention_output))
 
         # [BatchSize, SequenceLength, DimEmbedding]
-        attention_output = self.encoder_decoder_attention(encoder_output, encoder_output, normalized_output)
+        attention_output = self.encoder_decoder_attention(normalized_output, encoder_output, encoder_output)
         normalized_output = self.encoder_decoder_layernorm(normalized_output + self.dropout(attention_output))
 
         # [BatchSize, SequenceLength, DimEmbedding]
