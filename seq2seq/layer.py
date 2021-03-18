@@ -25,7 +25,7 @@ class BahdanauAttention(Layer):
 
         self.Wh = Dense(hidden_dim, name="hidden_converter")
         self.Ws = Dense(hidden_dim, name="value_converter")
-        self.V = Dense(1)
+        self.V = Dense(1, name="score")
 
     def call(self, decoder_hidden: tf.Tensor, encoder_hiddens: tf.Tensor):
         # [BatchSize, HiddenDim]
@@ -143,7 +143,7 @@ class MultiHeadAttention(Layer):
             ScaledDotProductAttention(dim_embedding // num_heads, name=f"scaled_dot_product_attention{i}")
             for i in range(1, num_heads + 1)
         ]
-        self.dense = Dense(dim_embedding)
+        self.dense = Dense(dim_embedding, name="linear_transform")
 
     def call(self, query, key, value, mask=None):
         batch_size, sequence_length, _ = tf.unstack(tf.shape(query), 3)
@@ -182,12 +182,12 @@ class TransformerEncoderLayer(Layer):
     def __init__(self, dim_embedding, num_heads, dim_feedfoward, dropout, activation="relu", **kwargs):
         super(TransformerEncoderLayer, self).__init__(**kwargs)
 
-        self.multihead_attention = MultiHeadAttention(dim_embedding, num_heads)
+        self.multihead_attention = MultiHeadAttention(dim_embedding, num_heads, name="self_attention")
         self.attention_layernorm = LayerNormalization(name="attention_layernorm")
         self.feedfoward_in = Dense(dim_feedfoward, activation=activation, name="feedforward_in")
         self.feedfoward_out = Dense(dim_embedding, name="feedforward_out")
         self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
-        self.dropout = Dropout(dropout)
+        self.dropout = Dropout(dropout, name="dropout")
 
     def call(self, input_embedding, mask=None):
         # [BatchSize, SequenceLength, DimEmbedding]
@@ -225,14 +225,14 @@ class TransformerDecoderLayer(Layer):
     def __init__(self, dim_embedding, num_heads, dim_feedfoward, dropout, activation="relu", **kwargs):
         super(TransformerDecoderLayer, self).__init__(**kwargs)
 
-        self.self_attention = MultiHeadAttention(dim_embedding, num_heads)
+        self.self_attention = MultiHeadAttention(dim_embedding, num_heads, name="self_attention")
         self.attention_layernorm = LayerNormalization(name="attention_layernorm")
-        self.encoder_decoder_attention = MultiHeadAttention(dim_embedding, num_heads)
+        self.encoder_decoder_attention = MultiHeadAttention(dim_embedding, num_heads, name="cross_attention")
         self.encoder_decoder_layernorm = LayerNormalization(name="attention_layernorm")
         self.feedfoward_in = Dense(dim_feedfoward, activation=activation, name="feedforward_in")
         self.feedfoward_out = Dense(dim_embedding, name="feedforward_out")
         self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
-        self.dropout = Dropout(dropout)
+        self.dropout = Dropout(dropout, name="dropout")
 
     def call(self, input_embedding, encoder_output, mask=None):
         # [BatchSize, SequenceLength, DimEmbedding]

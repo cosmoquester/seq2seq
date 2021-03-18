@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
-from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, SimpleRNN, Masking
+from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, Masking, SimpleRNN
 
 from .layer import BahdanauAttention, PositionalEncoding, TransformerDecoderLayer, TransformerEncoderLayer
 
@@ -61,14 +61,14 @@ class TransformerSeq2Seq(tf.keras.Model):
     ):
         super(TransformerSeq2Seq, self).__init__()
 
-        self.embedding = Embedding(vocab_size, dim_embedding)
-        self.pad_masking = Masking(pad_id)
-        self.pos_encode = PositionalEncoding(dim_embedding, positional_max_sequence)
-        self.dropout = Dropout(dropout)
+        self.embedding = Embedding(vocab_size, dim_embedding, name="embedding")
+        self.pad_masking = Masking(pad_id, name="masking")
+        self.pos_encode = PositionalEncoding(dim_embedding, positional_max_sequence, name="pos_encode")
+        self.dropout = Dropout(dropout, name="dropout")
         args = dim_embedding, num_heads, dim_feedfoward, dropout, activation
         self.encoder = [TransformerEncoderLayer(*args, name=f"encoder_layer{i}") for i in range(num_encoder_layers)]
         self.decoder = [TransformerDecoderLayer(*args, name=f"decoder_layer{i}") for i in range(num_encoder_layers)]
-        self.dense = Dense(vocab_size)
+        self.dense = Dense(vocab_size, name="feedforward")
         self.pad_id = pad_id
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
@@ -140,9 +140,9 @@ class RNNSeq2Seq(tf.keras.Model):
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
-        self.embedding = Embedding(vocab_size, hidden_dim)
-        self.pad_masking = Masking(pad_id)
-        self.dropout = Dropout(dropout)
+        self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
+        self.pad_masking = Masking(pad_id, name="masking")
+        self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
             # SimpleRNN, LSTM, GRU
             Bidirectional(
@@ -170,7 +170,7 @@ class RNNSeq2Seq(tf.keras.Model):
             for i in range(num_decoder_layers)
         ]
 
-        self.dense = Dense(vocab_size)
+        self.dense = Dense(vocab_size, name="dense")
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs
@@ -240,9 +240,9 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
-        self.embedding = Embedding(vocab_size, hidden_dim)
-        self.pad_masking = Masking(pad_id)
-        self.dropout = Dropout(dropout)
+        self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
+        self.pad_masking = Masking(pad_id, "masking")
+        self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
             # SimpleRNN, LSTM, GRU
             Bidirectional(
@@ -270,8 +270,8 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             for i in range(num_decoder_layers)
         ]
 
-        self.attention = BahdanauAttention(hidden_dim)
-        self.dense = Dense(vocab_size)
+        self.attention = BahdanauAttention(hidden_dim, name="attention")
+        self.dense = Dense(vocab_size, name="dense")
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs
