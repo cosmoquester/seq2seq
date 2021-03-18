@@ -67,7 +67,7 @@ class TransformerSeq2Seq(tf.keras.Model):
         self.dropout = Dropout(dropout, name="dropout")
         args = dim_embedding, num_heads, dim_feedfoward, dropout, activation
         self.encoder = [TransformerEncoderLayer(*args, name=f"encoder_layer{i}") for i in range(num_encoder_layers)]
-        self.decoder = [TransformerDecoderLayer(*args, name=f"decoder_layer{i}") for i in range(num_encoder_layers)]
+        self.decoder = [TransformerDecoderLayer(*args, name=f"decoder_layer{i}") for i in range(num_decoder_layers)]
         self.dense = Dense(vocab_size, name="feedforward")
         self.pad_id = pad_id
 
