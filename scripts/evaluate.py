@@ -25,12 +25,12 @@ inference_parameters = parser.add_argument_group("Inference Parameters")
 inference_parameters.add_argument("--batch-size", type=int, default=512)
 inference_parameters.add_argument("--prefetch-buffer-size", type=int, default=100000)
 inference_parameters.add_argument("--max-sequence-length", type=int, default=256)
-inference_parameters.add_argument("--auto-encoding", action="store_true", help="evaluate by autoencoding performance dataset format is lines of texts (.txt)")
 inference_parameters.add_argument("--header", action="store_true", help="use this flag if dataset (tsv file) has header")
 inference_parameters.add_argument("--beam-size", type=int, default=0, help="not given, use greedy search else beam search with this value as beam size")
 
 other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
+other_settings.add_argument("--auto-encoding", action="store_true", help="evaluate by autoencoding performance dataset format is lines of texts (.txt)")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 

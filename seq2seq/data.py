@@ -43,6 +43,7 @@ def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
         "target": tf.io.VarLenFeature(tf.int64),
     }
 
+    @tf.function
     def _parse_fn(example_proto):
         """ Parse the input `tf.train.Example` proto using the dictionary above. """
         parsed_example = tf.io.parse_single_example(example_proto, feature_description)

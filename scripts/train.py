@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-from seq2seq.data import get_dataset
+from seq2seq.data import get_dataset, get_tfrecord_dataset
 from seq2seq.model import MODEL_MAP
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
@@ -35,6 +35,7 @@ other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
+other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
@@ -93,9 +94,14 @@ if __name__ == "__main__":
             tf.shape(inputs[0])[1] < args.max_sequence_length, tf.size(labels) < args.max_sequence_length
         )
     )
+
     dataset = (
         get_dataset(dataset_files, tokenizer, args.auto_encoding)
-        .filter(filter_fn)
+        if not args.use_tfrecord
+        else get_tfrecord_dataset(dataset_files)
+    )
+    dataset = (
+        dataset.filter(filter_fn)
         .shuffle(args.shuffle_buffer_size)
         .flat_map(flat_fn)
         .prefetch(args.prefetch_buffer_size)
