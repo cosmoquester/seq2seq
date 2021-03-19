@@ -95,25 +95,24 @@ if __name__ == "__main__":
         )
     )
 
-    dataset = (
-        get_dataset(dataset_files, tokenizer, args.auto_encoding)
-        if not args.use_tfrecord
-        else get_tfrecord_dataset(dataset_files)
-    )
-    dataset = (
-        dataset.filter(filter_fn)
-        .shuffle(args.shuffle_buffer_size)
-        .flat_map(flat_fn)
-        .prefetch(args.prefetch_buffer_size)
-    )
-    train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
-    dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
-
-    if args.steps_per_epoch:
-        train_dataset = train_dataset.repeat()
-        logger.info("Repeat dataset")
-
     with strategy.scope():
+        dataset = (
+            get_dataset(dataset_files, tokenizer, args.auto_encoding)
+            if not args.use_tfrecord
+            else get_tfrecord_dataset(dataset_files)
+        )
+        dataset = (
+            dataset.filter(filter_fn)
+            .shuffle(args.shuffle_buffer_size)
+            .flat_map(flat_fn)
+            .prefetch(args.prefetch_buffer_size)
+        )
+        train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
+        dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
+
+        if args.steps_per_epoch:
+            train_dataset = train_dataset.repeat()
+            logger.info("Repeat dataset")
 
         # Model Initialize
         with tf.io.gfile.GFile(args.model_config_path) as f:
@@ -136,29 +135,29 @@ if __name__ == "__main__":
         logger.info("Model compiling complete")
         logger.info("Start training")
 
-    # Training
-    model.fit(
-        train_dataset,
-        validation_data=dev_dataset,
-        epochs=args.epochs,
-        steps_per_epoch=args.steps_per_epoch,
-        callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(
-                path_join(
-                    args.output_path,
-                    "models",
-                    "model-{epoch}epoch-{val_loss:.4f}loss_{val_sparse_categorical_accuracy:.4f}acc.ckpt",
+        # Training
+        model.fit(
+            train_dataset,
+            validation_data=dev_dataset,
+            epochs=args.epochs,
+            steps_per_epoch=args.steps_per_epoch,
+            callbacks=[
+                tf.keras.callbacks.ModelCheckpoint(
+                    path_join(
+                        args.output_path,
+                        "models",
+                        "model-{epoch}epoch-{val_loss:.4f}loss_{val_sparse_categorical_accuracy:.4f}acc.ckpt",
+                    ),
+                    save_weights_only=True,
+                    verbose=1,
                 ),
-                save_weights_only=True,
-                verbose=1,
-            ),
-            tf.keras.callbacks.TensorBoard(
-                path_join(args.output_path, "logs"),
-                update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
-            ),
-            tf.keras.callbacks.LearningRateScheduler(
-                learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
-            ),
-        ],
-    )
-    logger.info("Finished training!")
+                tf.keras.callbacks.TensorBoard(
+                    path_join(args.output_path, "logs"),
+                    update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
+                ),
+                tf.keras.callbacks.LearningRateScheduler(
+                    learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
+                ),
+            ],
+        )
+        logger.info("Finished training!")
