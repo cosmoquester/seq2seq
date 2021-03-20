@@ -34,7 +34,7 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
     return dataset.map(tokenize_fn).map(make_train_examples)
 
 
-def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
+def get_tfrecord_dataset(dataset_file_path: str, max_sequence_length: int) -> tf.data.Dataset:
     """ Read TFRecord dataset file and construct tensorflow dataset """
     dataset = tf.data.TFRecordDataset(dataset_file_path)
 
@@ -47,8 +47,14 @@ def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
     def _parse_fn(example_proto):
         """ Parse the input `tf.train.Example` proto using the dictionary above. """
         parsed_example = tf.io.parse_single_example(example_proto, feature_description)
-        source_tokens = tf.cast(parsed_example["source"].values, tf.int32)
-        target_tokens = tf.cast(parsed_example["target"].values, tf.int32)
+        source_tokens = tf.cast(parsed_example["source"].values, tf.int32)[:max_sequence_length]
+        target_tokens = tf.cast(parsed_example["target"].values, tf.int32)[:max_sequence_length]
+        source_tokens = tf.concat(
+            [source_tokens, tf.zeros([max_sequence_length - tf.shape(source_tokens)[0]], tf.int32)], axis=0
+        )
+        target_tokens = tf.concat(
+            [target_tokens, tf.zeros([max_sequence_length - tf.shape(target_tokens)[0]], tf.int32)], axis=0
+        )
         return source_tokens, target_tokens
 
     return dataset.map(_parse_fn).map(make_train_examples)

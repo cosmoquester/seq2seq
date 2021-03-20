@@ -69,7 +69,8 @@ if __name__ == "__main__":
     logger = get_logger()
 
     if args.mixed_precision:
-        policy = tf.keras.mixed_precision.experimental.Policy("mixed_float16")
+        mixed_type = "mixed_bfloat16" if args.device.upper() == "TPU" else "mixed_float16"
+        policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
         tf.keras.mixed_precision.experimental.set_policy(policy)
         logger.info("Use Mixed Precision FP16")
 
@@ -89,26 +90,16 @@ if __name__ == "__main__":
     with tf.io.gfile.GFile(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
-    flat_fn = tf.function(lambda inputs, labels: (tf.data.Dataset.from_tensor_slices((inputs, labels))))
-    filter_fn = tf.function(
-        lambda inputs, labels: tf.math.logical_and(
-            tf.shape(inputs[0])[1] < args.max_sequence_length, tf.size(labels) < args.max_sequence_length
-        )
-    )
-
     with strategy.scope():
         dataset = (
             get_dataset(dataset_files, tokenizer, args.auto_encoding)
             if not args.use_tfrecord
-            else get_tfrecord_dataset(dataset_files)
+            else get_tfrecord_dataset(dataset_files, args.max_sequence_length)
         )
-        dataset = (
-            dataset.filter(filter_fn)
-            .shuffle(args.shuffle_buffer_size)
-            .flat_map(flat_fn)
-            .prefetch(args.prefetch_buffer_size)
+        dataset = dataset.shuffle(args.shuffle_buffer_size).unbatch()
+        train_dataset = (
+            dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size).prefetch(args.prefetch_buffer_size)
         )
-        train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
         dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
 
         if args.steps_per_epoch:
