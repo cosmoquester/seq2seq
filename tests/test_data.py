@@ -3,7 +3,12 @@ import os
 import pytest
 import tensorflow as tf
 
-from seq2seq.data import get_dataset
+from seq2seq.data import get_dataset, get_tfrecord_dataset
+
+
+class PseudoTokenizer:
+    def tokenize(self, text):
+        return tf.strings.unicode_decode("2" + text + "3", "UTF-8")
 
 
 @pytest.fixture(scope="session")
@@ -12,11 +17,7 @@ def data_path():
 
 
 def test_get_dataset(data_path):
-    class PseudoTokenizer:
-        def tokenize(self, text):
-            return tf.strings.unicode_decode("2" + text + "3", "UTF-8")
-
-    dataset = get_dataset(os.path.join(data_path, "sample_dataset.tsv"), PseudoTokenizer(), False)
+    dataset = get_dataset(os.path.join(data_path, "sample_dataset.txt"), PseudoTokenizer(), False)
 
     data = next(iter(dataset))
     (encoder_input, decoder_input), labels = data
@@ -29,3 +30,14 @@ def test_get_dataset(data_path):
     tf.debugging.assert_equal(tf.shape(encoder_input), [20, 13])
     tf.debugging.assert_equal(tf.shape(decoder_input), [20, 15])
     tf.debugging.assert_equal(tf.shape(labels), [20])
+
+
+def test_get_tfrecord_dataset(data_path):
+    tfrecord_dataset = get_tfrecord_dataset(os.path.join(data_path, "sample_dataset.tfrecord"))
+    assert len(list(tfrecord_dataset)) == 8
+
+    data = next(iter(tfrecord_dataset))
+    (encoder_input, decoder_input), labels = data
+    tf.debugging.assert_equal(tf.shape(encoder_input), [12, 13])
+    tf.debugging.assert_equal(tf.shape(decoder_input), [12, 13])
+    tf.debugging.assert_equal(tf.shape(labels), [12])
