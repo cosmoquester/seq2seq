@@ -12,8 +12,8 @@ from seq2seq.data import serialize_example
 # fmt: off
 parser = argparse.ArgumentParser()
 parser.add_argument("--input-path", type=str, required=True, help="Input File glob pattern")
-parser.add_argument("--output-dir", type=str, required=True, help="Output path file or directory")
-parser.add_argument("--sp-model-path", type=str, required=True, help="Sentencepiece model path")
+parser.add_argument("--output-dir", type=str, help="Output path file or directory")
+parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model", help="Sentencepiece model path")
 parser.add_argument("--auto-encoding", action="store_true", help="If use autoencoding, dataset is .txt format else .tsv format")
 # fmt: on
 
@@ -41,7 +41,9 @@ if __name__ == "__main__":
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     for file_path in tqdm(input_files):
-        output_path = os.path.join(args.output_dir, os.path.splitext(file_path)[0] + ".tfrecord")
+        output_dir = args.output_dir if args.output_dir else os.path.dirname(file_path)
+        file_name = os.path.basename(file_path)
+        output_path = os.path.join(output_dir, os.path.splitext(file_name)[0] + ".tfrecord")
 
         # Write TFRecordFile
         with tf.io.TFRecordWriter(output_path) as writer:
