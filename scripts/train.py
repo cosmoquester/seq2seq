@@ -94,7 +94,7 @@ if __name__ == "__main__":
         dataset = (
             get_dataset(dataset_files, tokenizer, args.auto_encoding)
             if not args.use_tfrecord
-            else get_tfrecord_dataset(dataset_files, args.max_sequence_length)
+            else get_tfrecord_dataset(dataset_files, args.max_sequence_length if args.device.upper() == "TPU" else None)
         )
         dataset = dataset.shuffle(args.shuffle_buffer_size).unbatch()
         train_dataset = (
