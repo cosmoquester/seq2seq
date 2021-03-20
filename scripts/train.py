@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-from seq2seq.data import get_dataset
+from seq2seq.data import get_dataset, get_tfrecord_dataset
 from seq2seq.model import MODEL_MAP
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
@@ -35,6 +35,8 @@ other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
+other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
+other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
@@ -93,21 +95,25 @@ if __name__ == "__main__":
             tf.shape(inputs[0])[1] < args.max_sequence_length, tf.size(labels) < args.max_sequence_length
         )
     )
-    dataset = (
-        get_dataset(dataset_files, tokenizer, args.auto_encoding)
-        .filter(filter_fn)
-        .shuffle(args.shuffle_buffer_size)
-        .flat_map(flat_fn)
-        .prefetch(args.prefetch_buffer_size)
-    )
-    train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
-    dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
-
-    if args.steps_per_epoch:
-        train_dataset = train_dataset.repeat()
-        logger.info("Repeat dataset")
 
     with strategy.scope():
+        dataset = (
+            get_dataset(dataset_files, tokenizer, args.auto_encoding)
+            if not args.use_tfrecord
+            else get_tfrecord_dataset(dataset_files)
+        )
+        dataset = (
+            dataset.filter(filter_fn)
+            .shuffle(args.shuffle_buffer_size)
+            .flat_map(flat_fn)
+            .prefetch(args.prefetch_buffer_size)
+        )
+        train_dataset = dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size)
+        dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
+
+        if args.steps_per_epoch:
+            train_dataset = train_dataset.repeat()
+            logger.info("Repeat dataset")
 
         # Model Initialize
         with tf.io.gfile.GFile(args.model_config_path) as f:
@@ -124,35 +130,37 @@ if __name__ == "__main__":
         # Model Compile
         model.compile(
             optimizer=tf.optimizers.Adam(args.learning_rate),
-            loss=sparse_categorical_crossentropy,
+            loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True)
+            if not args.debug_nan_loss
+            else sparse_categorical_crossentropy,
             metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
         )
         logger.info("Model compiling complete")
         logger.info("Start training")
 
-    # Training
-    model.fit(
-        train_dataset,
-        validation_data=dev_dataset,
-        epochs=args.epochs,
-        steps_per_epoch=args.steps_per_epoch,
-        callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(
-                path_join(
-                    args.output_path,
-                    "models",
-                    "model-{epoch}epoch-{val_loss:.4f}loss_{val_sparse_categorical_accuracy:.4f}acc.ckpt",
+        # Training
+        model.fit(
+            train_dataset,
+            validation_data=dev_dataset,
+            epochs=args.epochs,
+            steps_per_epoch=args.steps_per_epoch,
+            callbacks=[
+                tf.keras.callbacks.ModelCheckpoint(
+                    path_join(
+                        args.output_path,
+                        "models",
+                        "model-{epoch}epoch-{val_loss:.4f}loss_{val_sparse_categorical_accuracy:.4f}acc.ckpt",
+                    ),
+                    save_weights_only=True,
+                    verbose=1,
                 ),
-                save_weights_only=True,
-                verbose=1,
-            ),
-            tf.keras.callbacks.TensorBoard(
-                path_join(args.output_path, "logs"),
-                update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
-            ),
-            tf.keras.callbacks.LearningRateScheduler(
-                learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
-            ),
-        ],
-    )
-    logger.info("Finished training!")
+                tf.keras.callbacks.TensorBoard(
+                    path_join(args.output_path, "logs"),
+                    update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
+                ),
+                tf.keras.callbacks.LearningRateScheduler(
+                    learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
+                ),
+            ],
+        )
+        logger.info("Finished training!")

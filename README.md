@@ -56,6 +56,9 @@ Other settings:
   --disable-mixed-precision
                         Use mixed precision FP16
   --auto-encoding       train by auto encoding with text lines dataset
+  --use-tfrecord        train using tfrecord dataset
+  --debug-nan-loss      Trainin with this flag, print the number of Nan loss
+                        (not supported on TPU)
   --device DEVICE       device to train model
 ```
 - `model-name` is seq2seq model class name, so one of (RNNSeq2Seq, RNNSeq2SeqWithAttention, TransformerSeq2Seq)
@@ -65,7 +68,8 @@ Other settings:
     So, model will be trained to echo texts.
 - `sp-model-path` is sentencepiece model path to tokenize text.
 - `disable-mixed-precision` is to disable fp16 mixed precision. Mixed precision is on as default.
-- `device` is training device, one of (cpu, gpu, tpu) But tpu is not supported yet.
+- `device` is training device, one of (cpu, gpu, tpu) But tpu is not supported yet. If you want to train on TPU, `use-tfrecord` option is necessary.
+    TFRecord can be made with "scripts/make_tfrecord.py" python script.
 
 When ending of training, the model checkpoints and tensorboard log files are saved to output directory.
 
@@ -114,8 +118,6 @@ Inference Parameters:
   --batch-size BATCH_SIZE
   --prefetch-buffer-size PREFETCH_BUFFER_SIZE
   --max-sequence-length MAX_SEQUENCE_LENGTH
-  --auto-encoding       evaluate by autoencoding performance dataset format is
-                        lines of texts (.txt)
   --header              use this flag if dataset (tsv file) has header
   --beam-size BEAM_SIZE
                         not given, use greedy search else beam search with
@@ -124,6 +126,8 @@ Inference Parameters:
 Other settings:
   --disable-mixed-precision
                         Use mixed precision FP16
+  --auto-encoding       evaluate by autoencoding performance dataset format is
+                        lines of texts (.txt)
   --device DEVICE       device to train model
 ```
 - Most of arugments is same as training script.
