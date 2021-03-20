@@ -36,6 +36,7 @@ other_settings.add_argument("--tensorboard-update-freq", type=int, help='log los
 other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
+other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
 
@@ -129,7 +130,9 @@ if __name__ == "__main__":
         # Model Compile
         model.compile(
             optimizer=tf.optimizers.Adam(args.learning_rate),
-            loss=sparse_categorical_crossentropy,
+            loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True)
+            if not args.debug_nan_loss
+            else sparse_categorical_crossentropy,
             metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
         )
         logger.info("Model compiling complete")
