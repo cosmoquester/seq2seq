@@ -43,6 +43,7 @@ Training Parameters:
   --steps-per-epoch STEPS_PER_EPOCH
   --learning-rate LEARNING_RATE
   --min-learning-rate MIN_LEARNING_RATE
+  --warm-up-rate WARM_UP_RATE
   --batch-size BATCH_SIZE
   --dev-batch-size DEV_BATCH_SIZE
   --num-dev-dataset NUM_DEV_DATASET

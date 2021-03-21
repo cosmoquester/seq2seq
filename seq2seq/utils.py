@@ -8,11 +8,13 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
-def learning_rate_scheduler(num_epochs, max_learning_rate, min_learninga_rate=1e-7):
+def learning_rate_scheduler(num_epochs, max_learning_rate, min_learninga_rate, warm_up_rate):
     lr_delta = (max_learning_rate - min_learninga_rate) / num_epochs
 
     def _scheduler(epoch, lr):
-        return max_learning_rate - lr_delta * epoch
+        if warm_up_rate and epoch <= num_epochs * warm_up_rate:
+            return max_learning_rate * (epoch + 1) / num_epochs * warm_up_rate
+        return max_learning_rate - lr_delta * (epoch + 1)
 
     return _scheduler
 

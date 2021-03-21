@@ -1,13 +1,10 @@
 import argparse
-import csv
 import glob
 import os
 
 import tensorflow as tf
 import tensorflow_text as text
 from tqdm import tqdm
-
-from seq2seq.data import serialize_example
 
 # fmt: off
 parser = argparse.ArgumentParser()
@@ -19,17 +16,30 @@ parser.add_argument("--auto-encoding", action="store_true", help="If use autoenc
 
 
 def read_data(file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encoding: bool):
-    with open(file_path) as f:
-        if auto_encoding:
-            for line in f:
-                tokens = tokenizer.tokenize(line.strip())
-                yield tokens, tokens
-        else:
-            reader = csv.reader(f, delimiter="\t")
-            for source_sentence, target_sentence in reader:
-                source_tokens = tokenizer.tokenize(source_sentence)
-                target_tokens = tokenizer.tokenize(target_sentence)
-                yield source_tokens, target_tokens
+    @tf.function
+    def tokenize_fn(source_text, target_text):
+        # Tokenize & Add bos, eos
+        source_tokens = tokenizer.tokenize(source_text)
+        target_tokens = tokenizer.tokenize(target_text)
+        return source_tokens, target_tokens
+
+    if auto_encoding:
+        dataset = tf.data.TextLineDataset(
+            file_path,
+            num_parallel_reads=tf.data.experimental.AUTOTUNE,
+        ).map(lambda text: (text, text))
+    else:
+        dataset = tf.data.experimental.CsvDataset(file_path, [tf.string, tf.string], field_delim="\t")
+
+    dataset = (
+        dataset.map(tokenize_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        .map(
+            lambda source, target: tf.stack([tf.io.serialize_tensor(source), tf.io.serialize_tensor(target)]),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
+        )
+        .map(tf.io.serialize_tensor)
+    )
+    return dataset
 
 
 if __name__ == "__main__":
@@ -46,7 +56,6 @@ if __name__ == "__main__":
         output_path = os.path.join(output_dir, os.path.splitext(file_name)[0] + ".tfrecord")
 
         # Write TFRecordFile
-        with tf.io.TFRecordWriter(output_path) as writer:
-            for source_tokens, target_tokens in read_data(file_path, tokenizer, args.auto_encoding):
-                serialized_example = serialize_example(source_tokens, target_tokens)
-                writer.write(serialized_example)
+        dataset = read_data(file_path, tokenizer, args.auto_encoding)
+        writer = tf.data.experimental.TFRecordWriter(output_path, "GZIP")
+        writer.write(dataset)
