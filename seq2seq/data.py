@@ -2,7 +2,6 @@ from typing import List, Optional
 
 import tensorflow as tf
 import tensorflow_text as text
-from tensorflow.data.experimental import AUTOTUNE
 
 
 def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encoding: bool):
@@ -27,12 +26,12 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
     if auto_encoding:
         dataset = tf.data.TextLineDataset(
             dataset_file_path,
-            num_parallel_reads=AUTOTUNE,
+            num_parallel_reads=tf.data.experimental.AUTOTUNE,
         ).map(lambda text: (text, text))
     else:
         dataset = tf.data.experimental.CsvDataset(dataset_file_path, [tf.string, tf.string], field_delim="\t")
 
-    return dataset.map(tokenize_fn).map(make_train_examples)
+    return dataset.map(tokenize_fn)
 
 
 def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
@@ -52,7 +51,7 @@ def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
         target_tokens = tf.cast(parsed_example["target"].values, tf.int32)
         return source_tokens, target_tokens
 
-    return dataset.map(_parse_fn, num_parallel_calls=AUTOTUNE).map(make_train_examples, num_parallel_calls=AUTOTUNE)
+    return dataset.map(_parse_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 
 @tf.function

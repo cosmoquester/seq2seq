@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-from seq2seq.data import get_dataset, get_tfrecord_dataset
+from seq2seq.data import get_dataset, get_tfrecord_dataset, make_train_examples
 from seq2seq.model import MODEL_MAP
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
@@ -93,34 +93,43 @@ if __name__ == "__main__":
 
     with strategy.scope():
         filter_fn = tf.function(
-            lambda inputs, labels: tf.math.logical_and(
-                tf.shape(inputs[0])[1] < args.max_sequence_length, tf.size(labels) < args.max_sequence_length
+            lambda source_tokens, target_tokens: tf.math.logical_and(
+                tf.size(source_tokens) < args.max_sequence_length, tf.size(target_tokens) < args.max_sequence_length
             )
         )
         slice_fn = tf.function(
-            lambda inputs, labels: (
-                (inputs[0][: args.max_sequence_length], inputs[1][: args.max_sequence_length]),
-                labels,
+            lambda source_tokens, target_tokens: (
+                source_tokens[: args.max_sequence_length],
+                target_tokens[: args.max_sequence_length],
             )
         )
 
         if args.use_tfrecord:
-            dataset = get_tfrecord_dataset(dataset_files).shuffle(args.shuffle_buffer_size)
+            dataset = get_tfrecord_dataset(dataset_files)
         else:
-            dataset = get_dataset(dataset_files, tokenizer, args.auto_encoding).shuffle(args.shuffle_buffer_size)
+            dataset = get_dataset(dataset_files, tokenizer, args.auto_encoding)
 
         # Filter or Slice
         if args.max_over_sequence_policy == "filter":
-            dataset = dataset.filter(filter_fn).unbatch()
+            dataset = dataset.filter(filter_fn)
         else:
-            dataset = dataset.unbatch().map(slice_fn)
+            dataset = dataset.map(slice_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+        dataset = dataset.shuffle(args.shuffle_buffer_size).map(
+            make_train_examples, num_parallel_calls=tf.data.experimental.AUTOTUNE
+        )
 
         train_dataset = (
             dataset.skip(args.num_dev_dataset)
+            .unbatch()
             .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
             .prefetch(args.prefetch_buffer_size)
         )
-        dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
+        dev_dataset = (
+            dataset.take(args.num_dev_dataset)
+            .unbatch()
+            .padded_batch(args.dev_batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
+        )
 
         if args.steps_per_epoch:
             train_dataset = train_dataset.repeat()
