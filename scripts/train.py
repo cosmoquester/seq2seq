@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
         # Filter or Slice
         if args.max_over_sequence_policy == "filter":
-            dataset.filter(filter_fn).unbatch()
+            dataset = dataset.filter(filter_fn).unbatch()
         else:
             dataset = dataset.unbatch().map(slice_fn)
 
