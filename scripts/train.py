@@ -38,6 +38,7 @@ other_settings.add_argument("--auto-encoding", action="store_true", help="train 
 other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
 other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")
 other_settings.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device to train model")
+other_settings.add_argument("--max-over-sequence-policy", type=str, default="filter", choices=["filter", "slice"], help="Policy for sequences of which length is over the max")
 # fmt: on
 
 
@@ -91,12 +92,25 @@ if __name__ == "__main__":
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     with strategy.scope():
+        filter_fn = tf.function(
+            lambda inputs, labels: tf.math.logical_and(
+                tf.shape(inputs[0])[1] < args.max_sequence_length, tf.size(labels) < args.max_sequence_length
+            )
+        )
+        slice_fn = tf.function(
+            lambda inputs, labels: (
+                (inputs[0][: args.max_sequence_length], inputs[1][: args.max_sequence_length]),
+                labels,
+            )
+        )
+
         dataset = (
             get_dataset(dataset_files, tokenizer, args.auto_encoding)
             if not args.use_tfrecord
             else get_tfrecord_dataset(dataset_files)
         )
         dataset = dataset.shuffle(args.shuffle_buffer_size).unbatch()
+        dataset = dataset.filter(filter_fn) if args.max_over_sequence_policy == "filter" else dataset.map(slice_fn)
         train_dataset = (
             dataset.skip(args.num_dev_dataset)
             .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
