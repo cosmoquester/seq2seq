@@ -94,11 +94,13 @@ if __name__ == "__main__":
         dataset = (
             get_dataset(dataset_files, tokenizer, args.auto_encoding)
             if not args.use_tfrecord
-            else get_tfrecord_dataset(dataset_files, args.max_sequence_length if args.device.upper() == "TPU" else None)
+            else get_tfrecord_dataset(dataset_files)
         )
         dataset = dataset.shuffle(args.shuffle_buffer_size).unbatch()
         train_dataset = (
-            dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size).prefetch(args.prefetch_buffer_size)
+            dataset.skip(args.num_dev_dataset)
+            .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
+            .prefetch(args.prefetch_buffer_size)
         )
         dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
 

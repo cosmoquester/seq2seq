@@ -2,6 +2,7 @@ from typing import List, Optional
 
 import tensorflow as tf
 import tensorflow_text as text
+from tensorflow.data.experimental import AUTOTUNE
 
 
 def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encoding: bool):
@@ -26,7 +27,7 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
     if auto_encoding:
         dataset = tf.data.TextLineDataset(
             dataset_file_path,
-            num_parallel_reads=tf.data.experimental.AUTOTUNE,
+            num_parallel_reads=AUTOTUNE,
         ).map(lambda text: (text, text))
     else:
         dataset = tf.data.experimental.CsvDataset(dataset_file_path, [tf.string, tf.string], field_delim="\t")
@@ -34,7 +35,7 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
     return dataset.map(tokenize_fn).map(make_train_examples)
 
 
-def get_tfrecord_dataset(dataset_file_path: str, max_sequence_length: Optional[int] = None) -> tf.data.Dataset:
+def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
     """ Read TFRecord dataset file and construct tensorflow dataset """
     dataset = tf.data.TFRecordDataset(dataset_file_path)
 
@@ -47,19 +48,11 @@ def get_tfrecord_dataset(dataset_file_path: str, max_sequence_length: Optional[i
     def _parse_fn(example_proto):
         """ Parse the input `tf.train.Example` proto using the dictionary above. """
         parsed_example = tf.io.parse_single_example(example_proto, feature_description)
-        source_tokens = tf.cast(parsed_example["source"].values, tf.int32)[:max_sequence_length]
-        target_tokens = tf.cast(parsed_example["target"].values, tf.int32)[:max_sequence_length]
-
-        if max_sequence_length is not None:
-            source_tokens = tf.concat(
-                [source_tokens, tf.zeros([max_sequence_length - tf.shape(source_tokens)[0]], tf.int32)], axis=0
-            )
-            target_tokens = tf.concat(
-                [target_tokens, tf.zeros([max_sequence_length - tf.shape(target_tokens)[0]], tf.int32)], axis=0
-            )
+        source_tokens = tf.cast(parsed_example["source"].values, tf.int32)
+        target_tokens = tf.cast(parsed_example["target"].values, tf.int32)
         return source_tokens, target_tokens
 
-    return dataset.map(_parse_fn).map(make_train_examples)
+    return dataset.map(_parse_fn, num_parallel_calls=AUTOTUNE).map(make_train_examples, num_parallel_calls=AUTOTUNE)
 
 
 @tf.function
