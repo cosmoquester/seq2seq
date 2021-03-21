@@ -104,13 +104,17 @@ if __name__ == "__main__":
             )
         )
 
-        dataset = (
-            get_dataset(dataset_files, tokenizer, args.auto_encoding)
-            if not args.use_tfrecord
-            else get_tfrecord_dataset(dataset_files)
-        )
-        dataset = dataset.shuffle(args.shuffle_buffer_size).unbatch()
-        dataset = dataset.filter(filter_fn) if args.max_over_sequence_policy == "filter" else dataset.map(slice_fn)
+        if args.use_tfrecord:
+            dataset = get_tfrecord_dataset(dataset_files).shuffle(args.shuffle_buffer_size)
+        else:
+            dataset = get_dataset(dataset_files, tokenizer, args.auto_encoding).shuffle(args.shuffle_buffer_size)
+
+        # Filter or Slice
+        if args.max_over_sequence_policy == "filter":
+            dataset.filter(filter_fn).unbatch()
+        else:
+            dataset = dataset.unbatch().map(slice_fn)
+
         train_dataset = (
             dataset.skip(args.num_dev_dataset)
             .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
