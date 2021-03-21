@@ -3,7 +3,7 @@ import os
 import pytest
 import tensorflow as tf
 
-from seq2seq.data import get_dataset, get_tfrecord_dataset
+from seq2seq.data import get_dataset, get_tfrecord_dataset, make_train_examples
 
 
 class PseudoTokenizer:
@@ -17,7 +17,9 @@ def data_path():
 
 
 def test_get_dataset(data_path):
-    dataset = get_dataset(os.path.join(data_path, "sample_dataset.txt"), PseudoTokenizer(), False)
+    dataset = get_dataset(os.path.join(data_path, "sample_dataset.txt"), PseudoTokenizer(), False).map(
+        make_train_examples
+    )
 
     data = next(iter(dataset))
     (encoder_input, decoder_input), labels = data
@@ -33,11 +35,11 @@ def test_get_dataset(data_path):
 
 
 def test_get_tfrecord_dataset(data_path):
-    tfrecord_dataset = get_tfrecord_dataset(os.path.join(data_path, "sample_dataset.tfrecord"), 10)
+    tfrecord_dataset = get_tfrecord_dataset(os.path.join(data_path, "sample_dataset.tfrecord")).map(make_train_examples)
     assert len(list(tfrecord_dataset)) == 8
 
     data = next(iter(tfrecord_dataset))
     (encoder_input, decoder_input), labels = data
-    tf.debugging.assert_equal(tf.shape(encoder_input), [9, 10])
-    tf.debugging.assert_equal(tf.shape(decoder_input), [9, 10])
-    tf.debugging.assert_equal(tf.shape(labels), [9])
+    tf.debugging.assert_equal(tf.shape(encoder_input), [12, 13])
+    tf.debugging.assert_equal(tf.shape(decoder_input), [12, 13])
+    tf.debugging.assert_equal(tf.shape(labels), [12])

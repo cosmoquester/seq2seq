@@ -59,7 +59,10 @@ Other settings:
   --use-tfrecord        train using tfrecord dataset
   --debug-nan-loss      Trainin with this flag, print the number of Nan loss
                         (not supported on TPU)
-  --device DEVICE       device to train model
+  --device {CPU,GPU,TPU}
+                        device to train model
+  --max-over-sequence-policy {filter,slice}
+                        Policy for sequences of which length is over the max
 ```
 - `model-name` is seq2seq model class name, so one of (RNNSeq2Seq, RNNSeq2SeqWithAttention, TransformerSeq2Seq)
 - `model-config-path` is model config file path. model config file describe model parameter. There are default model configs in `resources/configs`
@@ -70,7 +73,6 @@ Other settings:
 - `disable-mixed-precision` is to disable fp16 mixed precision. Mixed precision is on as default.
 - `device` is training device, one of (cpu, gpu, tpu) But tpu is not supported yet. If you want to train on TPU, `use-tfrecord` option is necessary.
     TFRecord can be made with "scripts/make_tfrecord.py" python script.
-
 When ending of training, the model checkpoints and tensorboard log files are saved to output directory.
 
 # Evaluate

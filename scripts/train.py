@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-from seq2seq.data import get_dataset, get_tfrecord_dataset
+from seq2seq.data import get_dataset, get_tfrecord_dataset, make_train_examples
 from seq2seq.model import MODEL_MAP
 from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
 
@@ -28,7 +28,7 @@ training_parameters.add_argument("--batch-size", type=int, default=512)
 training_parameters.add_argument("--dev-batch-size", type=int, default=512)
 training_parameters.add_argument("--num-dev-dataset", type=int, default=30000)
 training_parameters.add_argument("--shuffle-buffer-size", type=int, default=100000)
-training_parameters.add_argument("--prefetch-buffer-size", type=int, default=100000)
+training_parameters.add_argument("--prefetch-buffer-size", type=int, default=1000)
 training_parameters.add_argument("--max-sequence-length", type=int, default=256)
 
 other_settings = parser.add_argument_group("Other settings")
@@ -37,7 +37,8 @@ other_settings.add_argument("--disable-mixed-precision", action="store_false", d
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
 other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")
-other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
+other_settings.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device to train model")
+other_settings.add_argument("--max-over-sequence-policy", type=str, default="filter", choices=["filter", "slice"], help="Policy for sequences of which length is over the max")
 # fmt: on
 
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     logger = get_logger()
 
     if args.mixed_precision:
-        mixed_type = "mixed_bfloat16" if args.device.upper() == "TPU" else "mixed_float16"
+        mixed_type = "mixed_bfloat16" if args.device == "TPU" else "mixed_float16"
         policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
         tf.keras.mixed_precision.experimental.set_policy(policy)
         logger.info("Use Mixed Precision FP16")
@@ -91,16 +92,44 @@ if __name__ == "__main__":
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     with strategy.scope():
-        dataset = (
-            get_dataset(dataset_files, tokenizer, args.auto_encoding)
-            if not args.use_tfrecord
-            else get_tfrecord_dataset(dataset_files, args.max_sequence_length if args.device.upper() == "TPU" else None)
+        filter_fn = tf.function(
+            lambda source_tokens, target_tokens: tf.math.logical_and(
+                tf.size(source_tokens) < args.max_sequence_length, tf.size(target_tokens) < args.max_sequence_length
+            )
         )
-        dataset = dataset.shuffle(args.shuffle_buffer_size).unbatch()
+        slice_fn = tf.function(
+            lambda source_tokens, target_tokens: (
+                source_tokens[: args.max_sequence_length],
+                target_tokens[: args.max_sequence_length],
+            )
+        )
+
+        if args.use_tfrecord:
+            dataset = get_tfrecord_dataset(dataset_files)
+        else:
+            dataset = get_dataset(dataset_files, tokenizer, args.auto_encoding)
+
+        # Filter or Slice
+        if args.max_over_sequence_policy == "filter":
+            dataset = dataset.filter(filter_fn)
+        else:
+            dataset = dataset.map(slice_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+        dataset = dataset.shuffle(args.shuffle_buffer_size).map(
+            make_train_examples, num_parallel_calls=tf.data.experimental.AUTOTUNE
+        )
+
         train_dataset = (
-            dataset.skip(args.num_dev_dataset).padded_batch(args.batch_size).prefetch(args.prefetch_buffer_size)
+            dataset.skip(args.num_dev_dataset)
+            .unbatch()
+            .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
+            .prefetch(args.prefetch_buffer_size)
         )
-        dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(max(args.batch_size, args.dev_batch_size))
+        dev_dataset = (
+            dataset.take(args.num_dev_dataset)
+            .unbatch()
+            .padded_batch(args.dev_batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
+        )
 
         if args.steps_per_epoch:
             train_dataset = train_dataset.repeat()
