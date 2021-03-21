@@ -23,7 +23,8 @@ training_parameters = parser.add_argument_group("Training Parameters")
 training_parameters.add_argument("--epochs", type=int, default=10)
 training_parameters.add_argument("--steps-per-epoch", type=int, default=None)
 training_parameters.add_argument("--learning-rate", type=float, default=2e-4)
-training_parameters.add_argument("--min-learning-rate", type=float, default=1e-8)
+training_parameters.add_argument("--min-learning-rate", type=float, default=1e-5)
+training_parameters.add_argument("--warm-up-rate", type=float, default=0.06)
 training_parameters.add_argument("--batch-size", type=int, default=512)
 training_parameters.add_argument("--dev-batch-size", type=int, default=512)
 training_parameters.add_argument("--num-dev-dataset", type=int, default=30000)
@@ -179,7 +180,8 @@ if __name__ == "__main__":
                     update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
                 ),
                 tf.keras.callbacks.LearningRateScheduler(
-                    learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate), verbose=1
+                    learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate, args.warm_up_rate),
+                    verbose=1,
                 ),
             ],
         )
