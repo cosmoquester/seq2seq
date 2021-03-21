@@ -36,22 +36,18 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
 
 def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
     """ Read TFRecord dataset file and construct tensorflow dataset """
-    dataset = tf.data.TFRecordDataset(dataset_file_path)
 
-    feature_description = {
-        "source": tf.io.VarLenFeature(tf.int64),
-        "target": tf.io.VarLenFeature(tf.int64),
-    }
-
-    @tf.function
-    def _parse_fn(example_proto):
-        """ Parse the input `tf.train.Example` proto using the dictionary above. """
-        parsed_example = tf.io.parse_single_example(example_proto, feature_description)
-        source_tokens = tf.cast(parsed_example["source"].values, tf.int32)
-        target_tokens = tf.cast(parsed_example["target"].values, tf.int32)
-        return source_tokens, target_tokens
-
-    return dataset.map(_parse_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    dataset = (
+        tf.data.TFRecordDataset(dataset_file_path, "GZIP")
+        .map(lambda serialized_example: tf.io.parse_tensor(serialized_example, tf.string))
+        .map(
+            lambda serialized_example: (
+                tf.io.parse_tensor(serialized_example[0], tf.int32),
+                tf.io.parse_tensor(serialized_example[1], tf.int32),
+            )
+        )
+    )
+    return dataset
 
 
 @tf.function
@@ -68,15 +64,3 @@ def make_train_examples(source_tokens: tf.Tensor, target_tokens: tf.Tensor):
     labels = target_tokens[1:]
 
     return (encoder_input, decoder_input), labels
-
-
-def serialize_example(source_tokens: List[int], target_tokens: List[int]) -> bytes:
-    """ Creates a tf.train.Example message ready to be written to a file. """
-    feature = {"source": _token_feature(source_tokens), "target": _token_feature(target_tokens)}
-    example_proto = tf.train.Example(features=tf.train.Features(feature=feature))
-    return example_proto.SerializeToString()
-
-
-def _token_feature(tokens: List[int]) -> tf.train.Feature:
-    """ Make IntList feature from token indices """
-    return tf.train.Feature(int64_list=tf.train.Int64List(value=tokens))
