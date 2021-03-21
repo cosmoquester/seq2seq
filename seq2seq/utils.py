@@ -36,7 +36,7 @@ def path_join(*paths: Iterable[str]) -> str:
 def get_device_strategy(device) -> tf.distribute.Strategy:
     """ Return tensorflow device strategy """
     # Use TPU
-    if device.upper() == "TPU":
+    if device == "TPU":
         resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu=os.environ["TPU_NAME"])
         tf.config.experimental_connect_to_cluster(resolver)
         tf.tpu.experimental.initialize_tpu_system(resolver)
@@ -45,7 +45,7 @@ def get_device_strategy(device) -> tf.distribute.Strategy:
         return strategy
 
     # Use GPU
-    if device.upper() == "GPU":
+    if device == "GPU":
         devices = tf.config.list_physical_devices("GPU")
         if len(devices) == 0:
             raise RuntimeError("Cannot find GPU!")

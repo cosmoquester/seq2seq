@@ -28,7 +28,7 @@ training_parameters.add_argument("--batch-size", type=int, default=512)
 training_parameters.add_argument("--dev-batch-size", type=int, default=512)
 training_parameters.add_argument("--num-dev-dataset", type=int, default=30000)
 training_parameters.add_argument("--shuffle-buffer-size", type=int, default=100000)
-training_parameters.add_argument("--prefetch-buffer-size", type=int, default=100000)
+training_parameters.add_argument("--prefetch-buffer-size", type=int, default=1000)
 training_parameters.add_argument("--max-sequence-length", type=int, default=256)
 
 other_settings = parser.add_argument_group("Other settings")
@@ -37,7 +37,7 @@ other_settings.add_argument("--disable-mixed-precision", action="store_false", d
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
 other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")
-other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
+other_settings.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device to train model")
 # fmt: on
 
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     logger = get_logger()
 
     if args.mixed_precision:
-        mixed_type = "mixed_bfloat16" if args.device.upper() == "TPU" else "mixed_float16"
+        mixed_type = "mixed_bfloat16" if args.device == "TPU" else "mixed_float16"
         policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
         tf.keras.mixed_precision.experimental.set_policy(policy)
         logger.info("Use Mixed Precision FP16")
