@@ -292,3 +292,9 @@ $ curl -XPOST localhost:8501/v1/models/seq2seq:predict -d '{"inputs":{"texts":["
 ```
 - If you want to inference by beam searching, set `signature_name` as beam_search and request with beam_size.
 - Response also contains beam size number of texts per an example.
+
+# References
+
+- [Sequence to Sequence Learning with Neural Networks](https://arxiv.org/abs/1409.3215), Ilya Sutskever, Oriol Vinyals, Quoc V. Le
+- [Neural Machine Translation by Jointly Learning to Align and Translate](https://arxiv.org/abs/1409.0473), Dzmitry Bahdanau, Kyunghyun Cho, Yoshua Bengio
+- [Attention Is All You Need](https://arxiv.org/abs/1706.03762), Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin
