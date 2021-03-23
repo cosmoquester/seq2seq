@@ -2,6 +2,7 @@ from typing import List, Optional
 
 import tensorflow as tf
 import tensorflow_text as text
+from functools import partial
 
 
 def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encoding: bool):
@@ -37,15 +38,14 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
 def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
     """ Read TFRecord dataset file and construct tensorflow dataset """
 
+    decompose = lambda serialized_example: (
+        tf.io.parse_tensor(serialized_example[0], tf.int32),
+        tf.io.parse_tensor(serialized_example[1], tf.int32),
+    )
     dataset = (
         tf.data.TFRecordDataset(dataset_file_path, "GZIP")
-        .map(lambda serialized_example: tf.io.parse_tensor(serialized_example, tf.string))
-        .map(
-            lambda serialized_example: (
-                tf.io.parse_tensor(serialized_example[0], tf.int32),
-                tf.io.parse_tensor(serialized_example[1], tf.int32),
-            )
-        )
+        .map(partial(tf.io.parse_tensor, out_type=tf.string))
+        .map(decompose)
     )
     return dataset
 
