@@ -2,21 +2,33 @@ import logging
 import os
 import sys
 from collections import Counter
-from typing import Iterable
+from typing import Iterable, Optional, Union
 
 import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
-def learning_rate_scheduler(num_epochs, max_learning_rate, min_learninga_rate, warm_up_rate):
-    lr_delta = (max_learning_rate - min_learninga_rate) / num_epochs
+class LRScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
+    """ Schedule learning rate linearly from max_learning_rate to min_learning_rate. """
 
-    def _scheduler(epoch, lr):
-        if warm_up_rate and epoch <= num_epochs * warm_up_rate:
-            return max_learning_rate * (epoch + 1) / num_epochs * warm_up_rate
-        return max_learning_rate - lr_delta * (epoch + 1)
+    def __init__(
+        self,
+        total_steps: int,
+        max_learning_rate: float,
+        min_learning_rate: float,
+        warmup_rate: Optional[float] = None,
+        warmup_steps: Optional[int] = None,
+    ):
+        self.warmup_steps = int(total_steps * warmup_rate) + 1 if warmup_steps is None else warmup_steps
+        self.increasing_delta = max_learning_rate / self.warmup_steps
+        self.decreasing_delta = (max_learning_rate - min_learning_rate) / (total_steps - self.warmup_steps)
+        self.max_learning_rate = tf.cast(max_learning_rate, tf.float32)
+        self.min_learning_rate = tf.cast(min_learning_rate, tf.float32)
 
-    return _scheduler
+    def __call__(self, step: Union[int, tf.Tensor]) -> tf.Tensor:
+        step = tf.cast(step, tf.float32)
+        lr = tf.reduce_min([step * self.increasing_delta, self.max_learning_rate - step * self.decreasing_delta])
+        return tf.reduce_max([lr, self.min_learning_rate])
 
 
 def get_logger():

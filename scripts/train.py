@@ -7,7 +7,7 @@ import tensorflow_text as text
 
 from seq2seq.data import get_dataset, get_tfrecord_dataset, make_train_examples
 from seq2seq.model import MODEL_MAP
-from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
+from seq2seq.utils import get_device_strategy, get_logger, LRScheduler, path_join
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to train seq2seq model")
@@ -24,9 +24,11 @@ training_parameters.add_argument("--epochs", type=int, default=10)
 training_parameters.add_argument("--steps-per-epoch", type=int, default=None)
 training_parameters.add_argument("--learning-rate", type=float, default=2e-4)
 training_parameters.add_argument("--min-learning-rate", type=float, default=1e-5)
-training_parameters.add_argument("--warm-up-rate", type=float, default=0.06)
+training_parameters.add_argument("--warmup-steps", type=int)
+training_parameters.add_argument("--warmup-rate", type=float, default=0.06)
 training_parameters.add_argument("--batch-size", type=int, default=512)
 training_parameters.add_argument("--dev-batch-size", type=int, default=512)
+training_parameters.add_argument("--num-total-dataset", type=int, default=1000000)
 training_parameters.add_argument("--num-dev-dataset", type=int, default=30000)
 training_parameters.add_argument("--shuffle-buffer-size", type=int, default=100000)
 training_parameters.add_argument("--prefetch-buffer-size", type=int, default=1000)
@@ -149,8 +151,12 @@ if __name__ == "__main__":
             logger.info("Loaded weights of model")
 
         # Model Compile
+        total_steps = (args.num_total_dataset - args.num_dev_dataset) // args.batch_size
+        learning_rate = LRScheduler(
+            total_steps, args.learning_rate, args.min_learning_rate, args.warmup_rate, args.warmup_steps
+        )
         model.compile(
-            optimizer=tf.optimizers.Adam(args.learning_rate),
+            optimizer=tf.optimizers.Adam(learning_rate),
             loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True)
             if not args.debug_nan_loss
             else sparse_categorical_crossentropy,
@@ -178,10 +184,6 @@ if __name__ == "__main__":
                 tf.keras.callbacks.TensorBoard(
                     path_join(args.output_path, "logs"),
                     update_freq=args.tensorboard_update_freq if args.tensorboard_update_freq else "batch",
-                ),
-                tf.keras.callbacks.LearningRateScheduler(
-                    learning_rate_scheduler(args.epochs, args.learning_rate, args.min_learning_rate, args.warm_up_rate),
-                    verbose=1,
                 ),
             ],
         )
