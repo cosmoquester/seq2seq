@@ -1,8 +1,7 @@
-from typing import List, Optional
+from functools import partial
 
 import tensorflow as tf
 import tensorflow_text as text
-from functools import partial
 
 
 def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encoding: bool):
