@@ -7,7 +7,7 @@ import tensorflow_text as text
 
 from seq2seq.data import get_dataset, get_tfrecord_dataset, make_train_examples
 from seq2seq.model import MODEL_MAP
-from seq2seq.utils import get_device_strategy, get_logger, LRScheduler, path_join
+from seq2seq.utils import LRScheduler, get_device_strategy, get_logger, path_join
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to train seq2seq model")
@@ -118,20 +118,19 @@ if __name__ == "__main__":
         else:
             dataset = dataset.map(slice_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-        dataset = dataset.shuffle(args.shuffle_buffer_size).map(
-            make_train_examples, num_parallel_calls=tf.data.experimental.AUTOTUNE
+        dataset = (
+            dataset.shuffle(args.shuffle_buffer_size)
+            .map(make_train_examples, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            .unbatch()
         )
 
         train_dataset = (
             dataset.skip(args.num_dev_dataset)
-            .unbatch()
             .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
             .prefetch(args.prefetch_buffer_size)
         )
-        dev_dataset = (
-            dataset.take(args.num_dev_dataset)
-            .unbatch()
-            .padded_batch(args.dev_batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
+        dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(
+            args.dev_batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ())
         )
 
         if args.steps_per_epoch:

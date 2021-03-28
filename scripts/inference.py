@@ -6,10 +6,9 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-from seq2seq.data import get_dataset
 from seq2seq.model import MODEL_MAP
 from seq2seq.search import beam_search, greedy_search
-from seq2seq.utils import get_device_strategy, get_logger, learning_rate_scheduler, path_join
+from seq2seq.utils import get_device_strategy, get_logger
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
