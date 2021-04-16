@@ -62,7 +62,6 @@ class TransformerSeq2Seq(tf.keras.Model):
         super(TransformerSeq2Seq, self).__init__()
 
         self.embedding = Embedding(vocab_size, dim_embedding, name="embedding")
-        self.pad_masking = Masking(pad_id, name="masking")
         self.pos_encode = PositionalEncoding(dim_embedding, positional_max_sequence, name="pos_encode")
         self.dropout = Dropout(dropout, name="dropout")
         args = dim_embedding, num_heads, dim_feedfoward, dropout, activation
@@ -80,8 +79,8 @@ class TransformerSeq2Seq(tf.keras.Model):
             encoder_tokens, decoder_tokens, encoder_attention_mask, decoder_attention_mask = inputs
 
         # [BatchSize, SequenceLength, DimEmbedding]
-        encoder_input = self.pad_masking(self.embedding(encoder_tokens))
-        decoder_input = self.pad_masking(self.embedding(decoder_tokens))
+        encoder_input = self.embedding(encoder_tokens)
+        decoder_input = self.embedding(decoder_tokens)
 
         # [BatchSize, SequenceLength, DimEmbedding]
         encoder_input = self.dropout(self.pos_encode(encoder_input))
