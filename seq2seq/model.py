@@ -240,7 +240,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
 
         self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
-        self.pad_masking = Masking(pad_id, "masking")
+        self.pad_masking = Masking(pad_id, name="masking")
         self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
             # SimpleRNN, LSTM, GRU
