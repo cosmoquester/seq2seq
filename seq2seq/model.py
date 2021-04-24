@@ -175,8 +175,8 @@ class RNNSeq2Seq(tf.keras.Model):
         encoder_tokens, decoder_tokens = inputs
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.dropout(self.embedding(encoder_tokens))
-        decoder_input = self.dropout(self.embedding(decoder_tokens))
+        encoder_input = self.dropout(self.pad_masking(self.embedding(encoder_tokens)))
+        decoder_input = self.dropout(self.pad_masking(self.embedding(decoder_tokens)))
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
