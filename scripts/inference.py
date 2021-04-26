@@ -22,12 +22,12 @@ file_paths.add_argument("--sp-model-path", type=str, default="resources/sp-model
 
 inference_parameters = parser.add_argument_group("Inference Parameters")
 inference_parameters.add_argument("--batch-size", type=int, default=512)
-inference_parameters.add_argument("--prefetch-buffer-size", type=int, default=100000)
+inference_parameters.add_argument("--prefetch-buffer-size", type=int, default=100)
 inference_parameters.add_argument("--max-sequence-length", type=int, default=256)
 inference_parameters.add_argument("--beam-size", type=int, default=0, help="not given, use greedy search else beam search with this value as beam size")
 
 other_settings = parser.add_argument_group("Other settings")
-other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
+other_settings.add_argument("--mixed-precision", action="store_true", help="Use mixed precision FP16")
 other_settings.add_argument("--save-pair", action="store_true", help="save result as the pairs of original and decoded sentences")
 other_settings.add_argument("--device", type=str, default="CPU", help="device to train model")
 # fmt: on
@@ -51,46 +51,47 @@ if __name__ == "__main__":
     if not dataset_files:
         logger.error("[Error] Dataset path is invalid!")
         sys.exit(1)
-    dataset = (
-        tf.data.TextLineDataset(dataset_files, num_parallel_reads=tf.data.experimental.AUTOTUNE)
-        .map(tokenizer.tokenize)
-        .padded_batch(args.batch_size)
-    )
 
     with strategy.scope():
+        dataset = (
+            tf.data.TextLineDataset(dataset_files, num_parallel_reads=tf.data.experimental.AUTOTUNE)
+            .map(tokenizer.tokenize)
+            .padded_batch(args.batch_size)
+        ).prefetch(args.prefetch_buffer_size)
+
         # Model Initialize & Load pretrained model
         with tf.io.gfile.GFile(args.model_config_path) as f:
             model = MODEL_MAP[args.model_name](**json.load(f))
         model.load_weights(args.model_path)
         logger.info("Loaded weights of model")
 
-    # Inference
-    logger.info("Start Inference")
-    outputs = []
-    bos_id, eos_id = tokenizer.tokenize("").numpy().tolist()
+        # Inference
+        logger.info("Start Inference")
+        outputs = []
+        bos_id, eos_id = tokenizer.tokenize("").numpy().tolist()
 
-    for batch_input in dataset:
-        if args.beam_size > 0:
-            batch_output = beam_search(model, batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length)
-            batch_output = batch_output[0][:, 0, :].numpy()
+        for batch_input in dataset:
+            if args.beam_size > 0:
+                batch_output = beam_search(model, batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length)
+                batch_output = batch_output[0][:, 0, :].numpy()
+            else:
+                batch_output = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)[0].numpy()
+            outputs.extend(batch_output)
+        outputs = [tokenizer.detokenize(output).numpy().decode("UTF8") for output in outputs]
+        logger.info("Ended Inference, Start to save...")
+
+        # Save file
+        if args.save_pair:
+            with open(args.dataset_path) as f, open(args.output_path, "w") as fout:
+                wtr = csv.writer(fout, delimiter="\t")
+                wtr.writerow(["EncodedSentence", "DecodedSentence"])
+
+                for input_sentence, decoded_sentence in zip(f.read().split("\n"), outputs):
+                    wtr.writerow((input_sentence, decoded_sentence))
+            logger.info(f"Saved (original sentence,decoded sentence) pairs to {args.output_path}")
+
         else:
-            batch_output = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)[0].numpy()
-        outputs.extend(batch_output)
-    outputs = [tokenizer.detokenize(output).numpy().decode("UTF8") for output in outputs]
-    logger.info("Ended Inference, Start to save...")
-
-    # Save file
-    if args.save_pair:
-        with open(args.dataset_path) as f, open(args.output_path, "w") as fout:
-            wtr = csv.writer(fout, delimiter="\t")
-            wtr.writerow(["EncodedSentence", "DecodedSentence"])
-
-            for input_sentence, decoded_sentence in zip(f.read().split("\n"), outputs):
-                wtr.writerow((input_sentence, decoded_sentence))
-        logger.info(f"Saved (original sentence,decoded sentence) pairs to {args.output_path}")
-
-    else:
-        with open(args.output_path, "w") as fout:
-            for line in outputs:
-                fout.write(line + "\n")
-        logger.info(f"Saved generated sentences to {args.output_path}")
+            with open(args.output_path, "w") as fout:
+                for line in outputs:
+                    fout.write(line + "\n")
+            logger.info(f"Saved generated sentences to {args.output_path}")

@@ -36,7 +36,7 @@ training_parameters.add_argument("--max-sequence-length", type=int, default=256)
 
 other_settings = parser.add_argument_group("Other settings")
 other_settings.add_argument("--tensorboard-update-freq", type=int, help='log losses and metrics every after this value step')
-other_settings.add_argument("--disable-mixed-precision", action="store_false", dest="mixed_precision", help="Use mixed precision FP16")
+other_settings.add_argument("--mixed-precision", action="store_true", help="Use mixed precision FP16")
 other_settings.add_argument("--auto-encoding", action="store_true", help="train by auto encoding with text lines dataset")
 other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
 other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")

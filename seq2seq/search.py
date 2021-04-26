@@ -41,7 +41,7 @@ def greedy_search(
         log_probs, new_tokens = tf.math.top_k(output)
         log_probs, new_tokens = tf.cast(log_probs, log_perplexity.dtype), tf.cast(new_tokens, tf.int32)
         log_perplexity = tf.where(is_ended, log_perplexity, log_perplexity + log_probs)
-        new_tokens = tf.where(is_ended, 0, new_tokens)
+        new_tokens = tf.where(is_ended, pad_id, new_tokens)
         is_ended = tf.logical_or(is_ended, new_tokens == eos_id)
         sequence_lengths = tf.where(new_tokens == eos_id, tf.shape(decoder_input)[1] + 1, sequence_lengths)
 
