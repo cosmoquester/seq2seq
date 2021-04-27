@@ -76,7 +76,7 @@ def test_transformer_encoder_layer_shape():
     dropout = 0.1
 
     input_embedding = tf.random.normal((batch_size, sequence_length, dim_embedding))
-    attention_mask = tf.random.uniform((batch_size, sequence_length, sequence_length), 0, 2, tf.float32)
+    attention_mask = tf.random.uniform((batch_size, 1, sequence_length), 0, 2, tf.float32)
     encoder_layer = TransformerEncoderLayer(dim_embedding, num_heads, dim_feedforward, dropout)
 
     output = encoder_layer(input_embedding, attention_mask)
@@ -85,19 +85,19 @@ def test_transformer_encoder_layer_shape():
 
 def test_transformer_decoder_layer_shape():
     batch_size = 4
-    sequence_length = 33
+    source_sequence_length = 33
+    target_sequence_length = 20
     encoder_dim_embedding = 44
     dim_embedding = 48
     num_heads = 2
     dim_feedforward = 128
     dropout = 0.1
 
-    inputs = (
-        tf.random.normal((batch_size, sequence_length, dim_embedding)),
-        tf.random.normal((batch_size, sequence_length, encoder_dim_embedding)),
-        tf.random.uniform((batch_size, sequence_length, sequence_length), 0, 2, tf.float32),
-    )
+    input_embedding = tf.random.normal((batch_size, target_sequence_length, dim_embedding))
+    encoder_output = tf.random.normal((batch_size, source_sequence_length, encoder_dim_embedding))
+    encoder_mask = tf.random.uniform((batch_size, 1, source_sequence_length), 0, 2, tf.float32)
+    decoder_mask = tf.random.uniform((batch_size, 1, target_sequence_length), 0, 2, tf.float32)
     decoder_layer = TransformerDecoderLayer(dim_embedding, num_heads, dim_feedforward, dropout)
 
-    output = decoder_layer(*inputs)
-    tf.debugging.assert_equal(tf.shape(output), [batch_size, sequence_length, dim_embedding])
+    output = decoder_layer(input_embedding, encoder_output, encoder_mask, decoder_mask)
+    tf.debugging.assert_equal(tf.shape(output), [batch_size, target_sequence_length, dim_embedding])
