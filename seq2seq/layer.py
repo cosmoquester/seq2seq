@@ -232,13 +232,15 @@ class TransformerDecoderLayer(Layer):
         self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
         self.dropout = Dropout(dropout, name="dropout")
 
-    def call(self, input_embedding, encoder_output, mask=None):
+    def call(self, input_embedding, encoder_output, encoder_mask=None, decoder_mask=None):
         # [BatchSize, SequenceLength, DimEmbedding]
-        attention_output = self.self_attention(input_embedding, input_embedding, input_embedding, mask)
+        attention_output = self.self_attention(input_embedding, input_embedding, input_embedding, decoder_mask)
         normalized_output = self.attention_layernorm(input_embedding + self.dropout(attention_output))
 
         # [BatchSize, SequenceLength, DimEmbedding]
-        attention_output = self.encoder_decoder_attention(normalized_output, encoder_output, encoder_output)
+        attention_output = self.encoder_decoder_attention(
+            normalized_output, encoder_output, encoder_output, encoder_mask
+        )
         normalized_output = self.encoder_decoder_layernorm(normalized_output + self.dropout(attention_output))
 
         # [BatchSize, SequenceLength, DimEmbedding]

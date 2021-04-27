@@ -90,7 +90,7 @@ class TransformerSeq2Seq(tf.keras.Model):
         for encoder_layer in self.encoder:
             encoder_input = encoder_layer(encoder_input, encoder_attention_mask)
         for decoder_layer in self.decoder:
-            decoder_input = decoder_layer(decoder_input, encoder_input, decoder_attention_mask)
+            decoder_input = decoder_layer(decoder_input, encoder_input, encoder_attention_mask, decoder_attention_mask)
 
         # [BatchSize, VocabSize]
         output = self.dense(decoder_input[:, -1, :])
