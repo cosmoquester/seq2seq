@@ -31,8 +31,8 @@ class LRScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
         return tf.reduce_max([lr, self.min_learning_rate])
 
 
-def get_logger():
-    logger = logging.getLogger()
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("[%(asctime)s] %(message)s"))

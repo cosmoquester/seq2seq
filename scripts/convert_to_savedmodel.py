@@ -60,7 +60,7 @@ def random_string(length=16):
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    logger = get_logger()
+    logger = get_logger(__name__)
 
     with open(args.model_config_path) as f:
         model = MODEL_MAP[args.model_name](**json.load(f))

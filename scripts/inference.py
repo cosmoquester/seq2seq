@@ -36,7 +36,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     strategy = get_device_strategy(args.device)
 
-    logger = get_logger()
+    logger = get_logger(__name__)
 
     if args.mixed_precision:
         policy = tf.keras.mixed_precision.experimental.Policy("mixed_float16")
