@@ -73,8 +73,8 @@ class TransformerSeq2Seq(tf.keras.Model):
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         if len(inputs) == 2:
             encoder_tokens, decoder_tokens = inputs
-            encoder_attention_mask = tf.cast(encoder_tokens == self.pad_id, tf.float32)
-            decoder_attention_mask = tf.cast(decoder_tokens == self.pad_id, tf.float32)
+            encoder_attention_mask = tf.expand_dims(tf.cast(encoder_tokens == self.pad_id, tf.float32), axis=1)
+            decoder_attention_mask = tf.expand_dims(tf.cast(decoder_tokens == self.pad_id, tf.float32), axis=1)
         else:
             encoder_tokens, decoder_tokens, encoder_attention_mask, decoder_attention_mask = inputs
 

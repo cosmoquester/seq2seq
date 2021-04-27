@@ -81,10 +81,10 @@ class ScaledDotProductAttention(Layer):
         dim_head: embedding dimension for a head, calculated as dim_embedding / num_heads.
 
     Call Arguemnts:
-        query: [BatchSize, SequenceLength, DimQuery-Key]
-        key: [BatchSize, SequenceLength, DimQuery-Key]
-        value: [BatchSize, SequenceLength, DimValue]
-        mask: [BatchSize, SequenceLength]
+        query: [BatchSize, QuerySequenceLength, DimQuery-Key]
+        key: [BatchSize, KeySequenceLength, DimQuery-Key]
+        value: [BatchSize, KeySequenceLength, DimValue]
+        mask: [BatchSize, QuerySequenceLength, KeySequenceLength]
 
     Output Shape:
         3D tensor with shape:
@@ -104,11 +104,10 @@ class ScaledDotProductAttention(Layer):
         key = self.Wk(key)
         value = self.Wv(value)
 
-        # [BatchSize, SequenceLength, SequenceLength]
+        # [BatchSize, QuerySequenceLength, KeySequenceLength]
         scaled_attention_logits = tf.matmul(query, key, transpose_b=True) / tf.cast(self.divider, key.dtype)
 
         if mask is not None:
-            mask = mask[:, :, tf.newaxis]
             scaled_attention_logits += tf.cast(mask * -1e9, scaled_attention_logits.dtype)
 
         attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
@@ -148,7 +147,6 @@ class MultiHeadAttention(Layer):
     def call(self, query, key, value, mask=None):
         batch_size, sequence_length, _ = tf.unstack(tf.shape(query), 3)
 
-        # outputs = tf.constant([], tf.float32, [batch_size, sequence_length, 0])
         outputs = tf.reshape(tf.constant([]), [batch_size, sequence_length, 0])
         for attention in self.attentions:
             output = attention(query, key, value, mask)
