@@ -24,19 +24,20 @@ def read_data(file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encod
         return source_tokens, target_tokens
 
     if auto_encoding:
+        duplicate = tf.function(lambda text: (text, text))
         dataset = tf.data.TextLineDataset(
             file_path,
             num_parallel_reads=tf.data.experimental.AUTOTUNE,
-        ).map(lambda text: (text, text))
+        ).map(duplicate)
     else:
         dataset = tf.data.experimental.CsvDataset(file_path, [tf.string, tf.string], field_delim="\t")
 
+    serialize = tf.function(
+        lambda source, target: tf.stack([tf.io.serialize_tensor(source), tf.io.serialize_tensor(target)])
+    )
     dataset = (
         dataset.map(tokenize_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        .map(
-            lambda source, target: tf.stack([tf.io.serialize_tensor(source), tf.io.serialize_tensor(target)]),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
+        .map(serialize, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         .map(tf.io.serialize_tensor)
     )
     return dataset

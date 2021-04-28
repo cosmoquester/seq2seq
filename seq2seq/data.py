@@ -24,10 +24,11 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
         return source_tokens, target_tokens
 
     if auto_encoding:
+        duplicate = tf.function(lambda text: (text, text))
         dataset = tf.data.TextLineDataset(
             dataset_file_path,
             num_parallel_reads=tf.data.experimental.AUTOTUNE,
-        ).map(lambda text: (text, text))
+        ).map(duplicate)
     else:
         dataset = tf.data.experimental.CsvDataset(dataset_file_path, [tf.string, tf.string], field_delim="\t")
 
@@ -37,9 +38,11 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
 def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
     """ Read TFRecord dataset file and construct tensorflow dataset """
 
-    decompose = lambda serialized_example: (
-        tf.io.parse_tensor(serialized_example[0], tf.int32),
-        tf.io.parse_tensor(serialized_example[1], tf.int32),
+    decompose = tf.function(
+        lambda serialized_example: (
+            tf.io.parse_tensor(serialized_example[0], tf.int32),
+            tf.io.parse_tensor(serialized_example[1], tf.int32),
+        )
     )
     dataset = (
         tf.data.TFRecordDataset(dataset_file_path, "GZIP")
