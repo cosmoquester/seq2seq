@@ -24,6 +24,7 @@ inference_parameters = parser.add_argument_group("Inference Parameters")
 inference_parameters.add_argument("--batch-size", type=int, default=512)
 inference_parameters.add_argument("--prefetch-buffer-size", type=int, default=100)
 inference_parameters.add_argument("--max-sequence-length", type=int, default=256)
+inference_parameters.add_argument("--pad-id", type=int, default=0, help="Pad token id when tokenize with sentencepiece")
 inference_parameters.add_argument("--beam-size", type=int, default=0, help="not given, use greedy search else beam search with this value as beam size")
 
 other_settings = parser.add_argument_group("Other settings")
@@ -46,6 +47,7 @@ if __name__ == "__main__":
     # Construct Dataset
     with tf.io.gfile.GFile(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
+    bos_id, eos_id = tokenizer.tokenize("").numpy().tolist()
 
     dataset_files = tf.io.gfile.glob(args.dataset_path)
     if not dataset_files:
@@ -63,27 +65,19 @@ if __name__ == "__main__":
         with tf.io.gfile.GFile(args.model_config_path) as f:
             model = create_model(args.model_name, json.load(f))
         model.load_weights(args.model_path)
-        searcher = Searcher(model)
+        searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
         logger.info("Loaded weights of model")
 
         # Inference
         logger.info("Start Inference")
         outputs = []
-        bos_id, eos_id = tokenizer.tokenize("").numpy().tolist()
 
         for batch_input in dataset:
             if args.beam_size > 0:
-                batch_output = searcher.beam_search(
-                    batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length
-                )
+                batch_output = searcher.beam_search(batch_input, args.beam_size)
                 batch_output = batch_output[0][:, 0, :].numpy()
             else:
-                batch_output = searcher.greedy_search(
-                    batch_input,
-                    bos_id,
-                    eos_id,
-                    args.max_sequence_length,
-                )[0].numpy()
+                batch_output = searcher.greedy_search(batch_input)[0].numpy()
             outputs.extend(batch_output)
         outputs = [tokenizer.detokenize(output).numpy().decode("UTF8") for output in outputs]
         logger.info("Ended Inference, Start to save...")

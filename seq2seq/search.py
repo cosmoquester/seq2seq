@@ -4,47 +4,36 @@ import tensorflow as tf
 class Searcher:
     """Provide search functions for seq2seq models"""
 
-    def __init__(self, model: tf.keras.Model):
+    def __init__(self, model: tf.keras.Model, max_sequence_length: int, bos_id: int, eos_id: int, pad_id: int = 0):
         """
         :param model: seq2seq model instance.
+        :param max_sequence_length: max sequence length of decoded sequences.
+        :param bos_id: bos id for decoding.
+        :param eos_id: eos id for decoding.
+        :param pad_id: when a sequence is shorter thans other sentences, the back token ids of the sequence is filled pad id.
         """
         self.model = model
+        self.max_sequence_length = max_sequence_length
+        self.bos_id = bos_id
+        self.eos_id = eos_id
+        self.pad_id = pad_id
 
-    @tf.function(
-        input_signature=[
-            tf.TensorSpec([None, None], tf.int32),
-            tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
-        ]
-    )
-    def greedy_search(
-        self,
-        encoder_input: tf.Tensor,
-        bos_id: int,
-        eos_id: int,
-        max_sequence_length: int,
-        pad_id: int = 0,
-    ) -> tf.Tensor:
+    @tf.function(input_signature=[tf.TensorSpec([None, None], tf.int32)])
+    def greedy_search(self, encoder_input: tf.Tensor) -> tf.Tensor:
         """
         Generate sentences using decoder by beam searching.
 
         :param encoder_input: seq2seq model inputs [BatchSize, EncoderSequenceLength].
-        :param bos_id: bos id for decoding.
-        :param eos_id: eos id for decoding.
-        :param max_sequence_length: max sequence length of decoded sequences.
-        :param pad_id: when a sequence is shorter thans other sentences, the back token ids of the sequence is filled pad id.
         :return: generated tensor shaped. and ppl value of each generated sentences
         """
         batch_size = tf.shape(encoder_input)[0]
-        decoder_input = tf.fill([batch_size, 1], bos_id)
+        decoder_input = tf.fill([batch_size, 1], self.bos_id)
         log_perplexity = tf.fill([batch_size, 1], 0.0)
-        sequence_lengths = tf.fill([batch_size, 1], max_sequence_length)
+        sequence_lengths = tf.fill([batch_size, 1], self.max_sequence_length)
         is_ended = tf.zeros([batch_size, 1], tf.bool)
 
         def _cond(decoder_input, is_ended, log_perplexity, sequence_lengths):
-            return tf.shape(decoder_input)[1] < max_sequence_length and not tf.reduce_all(is_ended)
+            return tf.shape(decoder_input)[1] < self.max_sequence_length and not tf.reduce_all(is_ended)
 
         def _body(decoder_input, is_ended, log_perplexity, sequence_lengths):
             # [BatchSize, VocabSize]
@@ -55,9 +44,9 @@ class Searcher:
             log_probs, new_tokens = tf.math.top_k(output)
             log_probs, new_tokens = tf.cast(log_probs, log_perplexity.dtype), tf.cast(new_tokens, tf.int32)
             log_perplexity = tf.where(is_ended, log_perplexity, log_perplexity + log_probs)
-            new_tokens = tf.where(is_ended, pad_id, new_tokens)
-            is_ended = tf.logical_or(is_ended, new_tokens == eos_id)
-            sequence_lengths = tf.where(new_tokens == eos_id, tf.shape(decoder_input)[1] + 1, sequence_lengths)
+            new_tokens = tf.where(is_ended, self.pad_id, new_tokens)
+            is_ended = tf.logical_or(is_ended, new_tokens == self.eos_id)
+            sequence_lengths = tf.where(new_tokens == self.eos_id, tf.shape(decoder_input)[1] + 1, sequence_lengths)
 
             # [BatchSize, DecoderSequenceLength + 1]
             decoder_input = tf.concat((decoder_input, new_tokens), axis=1)
@@ -85,10 +74,6 @@ class Searcher:
         input_signature=[
             tf.TensorSpec([None, None], tf.int32),
             tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
-            tf.TensorSpec([], tf.int32),
             tf.TensorSpec([], tf.float64),
             tf.TensorSpec([], tf.int32),
         ]
@@ -97,10 +82,6 @@ class Searcher:
         self,
         encoder_input: tf.Tensor,
         beam_size: int,
-        bos_id: int,
-        eos_id: int,
-        max_sequence_length: int,
-        pad_id: int = 0,
         alpha: float = 1,
         beta: int = 32,
     ) -> tf.Tensor:
@@ -109,10 +90,6 @@ class Searcher:
 
         :param encoder_input: seq2seq model inputs [BatchSize, EncoderSequenceLength].
         :param beam_size: beam size for beam search.
-        :param bos_id: bos id for decoding.
-        :param eos_id: eos id for decoding.
-        :param max_sequence_length: max sequence length of decoded sequences.
-        :param pad_id: when a sequence is shorter thans other sentences, the back token ids of the sequence is filled pad id.
         :param alpha: length penalty control variable
         :param beta: length penalty control variable, meaning minimum length.
         :return: generated tensor shaped. and ppl value of each generated sentences
@@ -120,11 +97,11 @@ class Searcher:
             perplexity: (BatchSize, BeamSize)
         """
         batch_size = tf.shape(encoder_input)[0]
-        decoder_input = tf.fill([batch_size, 1], bos_id)
+        decoder_input = tf.fill([batch_size, 1], self.bos_id)
         log_perplexity = tf.fill([batch_size, 1], 0.0)
 
         def _to_sequence_lengths(decoder_single_input):
-            eos_indices = tf.where(decoder_single_input == eos_id)
+            eos_indices = tf.where(decoder_single_input == self.eos_id)
             if tf.size(eos_indices) == 0:
                 return tf.size(decoder_single_input, tf.int32)
             return tf.cast(tf.math.reduce_min(eos_indices) + 1, tf.int32)
@@ -136,10 +113,10 @@ class Searcher:
             return tf.reshape(sequence_lengths, original_shape[:-1])
 
         def has_eos(decoder_input):
-            return tf.reduce_any(decoder_input == eos_id, axis=-1)
+            return tf.reduce_any(decoder_input == self.eos_id, axis=-1)
 
         def _cond(encoder_input, decoder_input, log_perplexity):
-            return tf.shape(decoder_input)[1] < max_sequence_length and tf.reduce_any(
+            return tf.shape(decoder_input)[1] < self.max_sequence_length and tf.reduce_any(
                 tf.logical_not(has_eos(decoder_input))
             )
 
@@ -164,7 +141,7 @@ class Searcher:
                 encoder_input = tf.repeat(encoder_input, beam_size, axis=0)
 
                 # [BatchSize * BeamSize, 2]
-                decoder_input = tf.concat([tf.fill([batch_size * beam_size, 1], bos_id), new_tokens], axis=1)
+                decoder_input = tf.concat([tf.fill([batch_size * beam_size, 1], self.bos_id), new_tokens], axis=1)
                 log_perplexity = tf.cast(log_probs, log_perplexity.dtype)
                 return encoder_input, decoder_input, log_perplexity
             else:
@@ -208,7 +185,9 @@ class Searcher:
 
         decoder_input = tf.reshape(decoder_input, [batch_size, beam_size, -1])
         sequence_lengths = get_sequnce_lengths(decoder_input)
-        decoder_input = tf.where(tf.sequence_mask(sequence_lengths, tf.shape(decoder_input)[2]), decoder_input, pad_id)
+        decoder_input = tf.where(
+            tf.sequence_mask(sequence_lengths, tf.shape(decoder_input)[2]), decoder_input, self.pad_id
+        )
         perplexity = tf.pow(tf.exp(log_perplexity), tf.cast(-1 / sequence_lengths, log_perplexity.dtype))
 
         return decoder_input, perplexity
