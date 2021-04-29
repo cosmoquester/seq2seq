@@ -7,7 +7,7 @@ import tensorflow as tf
 import tensorflow_text as text
 
 from seq2seq.model import MODEL_MAP
-from seq2seq.search import beam_search, greedy_search
+from seq2seq.search import Searcher
 from seq2seq.utils import get_device_strategy, get_logger
 
 # fmt: off
@@ -63,6 +63,7 @@ if __name__ == "__main__":
         with tf.io.gfile.GFile(args.model_config_path) as f:
             model = MODEL_MAP[args.model_name](**json.load(f))
         model.load_weights(args.model_path)
+        searcher = Searcher(model)
         logger.info("Loaded weights of model")
 
         # Inference
@@ -72,10 +73,17 @@ if __name__ == "__main__":
 
         for batch_input in dataset:
             if args.beam_size > 0:
-                batch_output = beam_search(model, batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length)
+                batch_output = searcher.beam_search(
+                    batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length
+                )
                 batch_output = batch_output[0][:, 0, :].numpy()
             else:
-                batch_output = greedy_search(model, batch_input, bos_id, eos_id, args.max_sequence_length)[0].numpy()
+                batch_output = searcher.greedy_search(
+                    batch_input,
+                    bos_id,
+                    eos_id,
+                    args.max_sequence_length,
+                )[0].numpy()
             outputs.extend(batch_output)
         outputs = [tokenizer.detokenize(output).numpy().decode("UTF8") for output in outputs]
         logger.info("Ended Inference, Start to save...")

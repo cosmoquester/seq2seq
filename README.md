@@ -240,20 +240,18 @@ $ docker run -v `pwd`/seq2seq-model:/models/seq2seq -e MODEL_NAME=seq2seq -p 850
 You can open tensorflow serving server.
 
 ```sh
-$ curl -XPOST localhost:8501/v1/models/seq2seq:predict \
-    -d '{"inputs":["안녕하세요", "나는 오늘 밥을 먹었다", "아니 지금 뭐라고요?, 그게 대체 무슨 말이에요!!"]}'
-
+$ curl -XPOST localhost:8501/v1/models/seq2seq:predict -d '{"inputs":["안녕하세요", "나는 오늘 밥을 먹었다", "아니 지금 뭐라고요?, 그게 대체 무슨 말이에요!!"]}'
 {
     "outputs": {
         "perplexity": [
-            1.77961457,
-            20.244873,
-            12.752758
+            1.00468457,
+            1.06678605,
+            1.04327798
         ],
         "sentences": [
-            "? ? ?",
-            "손을 앉아 이해하는 이해하는",
-            "광주;;...---------------------------------------------~"
+            "안녕하세요",
+            "나는 오늘 밥을 먹었다",
+            "아니 지금 뭐라고요?, 그게 대체 무슨 말이에요!!"
         ]
     }
 }
@@ -261,34 +259,35 @@ $ curl -XPOST localhost:8501/v1/models/seq2seq:predict \
 - By default, signature function is greedy search. Like above example, you can send texts then receice ppl and gernerated texts.
 
 ```sh
-$ curl -XPOST localhost:8501/v1/models/seq2seq:predict -d '{"inputs":{"texts":["반갑습니다", "학교가기 싫다"], "beam_size":3}, "signature_name":"beam_search"}' {
+$ curl -XPOST localhost:8501/v1/models/seq2seq:predict -d '{"inputs":{"texts":["반갑습니다", "학교가기 싫다"], "beam_size":3}, "signature_name":"beam_search"}'
+{
     "outputs": {
-        "perplexity": [
-            [
-                1.172463,
-                1.183263,
-                1.538343
-            ],
-            [
-                2.331777,
-                2.360960,
-                1.421935
-            ]
-        ],
         "sentences": [
             [
                 "반갑습니다",
-                "너무 반가워요 ",
-                "반갑네요"
+                "반갑습니다",
+                "반갑습니다"
             ],
             [
-                "학교가기 싫다니까",
-                "안갈래",
-                "학교 너무 가기 싫다"
+                "학교가기 싫다",
+                "학교가기놔",
+                "학교가기 챙겨"
+            ]
+        ],
+        "perplexity": [
+            [
+                1.0299294,
+                1.0299294,
+                1.0299294
+            ],
+            [
+                1.22807097,
+                1.54527545,
+                1.56684875
             ]
         ]
     }
-}%
+}
 ```
 - If you want to inference by beam searching, set `signature_name` as beam_search and request with beam_size.
 - Response also contains beam size number of texts per an example.

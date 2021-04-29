@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from seq2seq.model import RNNSeq2Seq
-from seq2seq.search import beam_search, greedy_search
+from seq2seq.search import Searcher
 
 
 def test_search():
@@ -29,8 +29,10 @@ def test_search():
 
     encoder_input = tf.random.uniform((batch_size, encoder_sequence), maxval=100, dtype=tf.int32)
     decoder_sequence = tf.random.uniform((batch_size, decoder_sequence), maxval=100, dtype=tf.int32)
-    beam_result, beam_ppl = beam_search(model, encoder_input, 1, bos_id, eos_id, max_sequence_length)
-    greedy_result, greedy_ppl = greedy_search(model, encoder_input, bos_id, eos_id, max_sequence_length)
+
+    searcher = Searcher(model)
+    beam_result, beam_ppl = searcher.beam_search(encoder_input, 1, bos_id, eos_id, max_sequence_length)
+    greedy_result, greedy_ppl = searcher.greedy_search(encoder_input, bos_id, eos_id, max_sequence_length)
 
     tf.debugging.assert_equal(beam_result[:, 0, :], greedy_result)
     tf.debugging.assert_near(tf.squeeze(beam_ppl), greedy_ppl)

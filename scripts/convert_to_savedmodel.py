@@ -10,7 +10,7 @@ from tensorflow.python.framework import tensor_util
 from tensorflow_serving.apis import predict_pb2, prediction_log_pb2
 
 from seq2seq.model import MODEL_MAP
-from seq2seq.search import beam_search, greedy_search
+from seq2seq.search import Searcher
 from seq2seq.utils import get_logger
 
 # fmt: off
@@ -24,7 +24,7 @@ parser.add_argument("--output-path", type=str, default="seq2seq-model/1", help="
 search = parser.add_argument_group("Search Method Configs")
 search.add_argument("--pad-id", type=int, default=0, help="Pad token id when tokenize with sentencepiece")
 search.add_argument("--max-sequence-length", type=int, default=128, help="Max number of tokens including bos, eos")
-search.add_argument("--alpha", type=int, default=1, help="length penalty control variable when beam searching")
+search.add_argument("--alpha", type=float, default=1, help="length penalty control variable when beam searching")
 search.add_argument("--beta", type=int, default=32, help="length penalty control variable when beam searching")
 # fmt: on
 
@@ -65,6 +65,7 @@ if __name__ == "__main__":
     with open(args.model_config_path) as f:
         model = MODEL_MAP[args.model_name](**json.load(f))
     model.load_weights(args.model_weight_path)
+    searcher = Searcher(model)
     logger.info("Loaded weights of model")
 
     with open(args.sp_model_path, "rb") as f:
@@ -74,10 +75,9 @@ if __name__ == "__main__":
 
     @tf.function(input_signature=[tf.TensorSpec([None], tf.string), tf.TensorSpec([], tf.int32)])
     def generate_with_beam_search(texts, beam_size):
-        batch_size = tf.shape(texts)[0]
         tokens = tokenizer.tokenize(texts).to_tensor(default_value=args.pad_id)
-        decoded_tokens, perplexity = beam_search(
-            model, tokens, beam_size, bos_id, eos_id, args.max_sequence_length, args.pad_id, args.alpha, args.beta
+        decoded_tokens, perplexity = searcher.beam_search(
+            tokens, beam_size, bos_id, eos_id, args.max_sequence_length, args.pad_id, args.alpha, args.beta
         )
         sentences = tokenizer.detokenize(decoded_tokens).to_tensor()
         return {"sentences": sentences, "perplexity": perplexity}
@@ -85,7 +85,9 @@ if __name__ == "__main__":
     @tf.function(input_signature=[tf.TensorSpec([None], tf.string)])
     def generate_with_greedy_search(texts):
         tokens = tokenizer.tokenize(texts).to_tensor(default_value=args.pad_id)
-        decoded_tokens, perplexity = greedy_search(model, tokens, bos_id, eos_id, args.max_sequence_length, args.pad_id)
+        decoded_tokens, perplexity = searcher.greedy_search(
+            tokens, bos_id, eos_id, args.max_sequence_length, args.pad_id
+        )
         sentences = tokenizer.detokenize(decoded_tokens)
         return {"sentences": sentences, "perplexity": perplexity}
 
