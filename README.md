@@ -188,6 +188,55 @@ Other settings:
 ```
 - When use `save-pair` option, save with original sentence and generated sentence with tsv format. If not, save only generated sentences.
 
+# Interactive
+
+## Example
+
+You can test your trained model interactively. If you want to finish, just enter to put empty input.
+```sh
+$ python -m scripts.interactive \
+    --model-name TransformerSeq2Seq \
+    --model-path ~/model-28epoch-0.1396loss_0.9812acc.ckpt \
+    --model-config-path resources/configs/transformer.json
+
+[2021-04-30 00:27:00,037] Loaded weights of model
+Please Input Text: 너 이름이 뭐야?
+2021-04-30 00:27:23.437004: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcublas.so.10
+2021-04-30 00:27:23.705647: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudnn.so.7
+Output: 너 이름이 뭐야?, Perplexity: 1.0628
+Please Input Text: 근데 어쩌라는 걸까
+Output: 근데 어쩌라는 걸까, Perplexity: 1.0594
+Please Input Text:  헤헤헤헤
+Output: 헤헤헤헤, Perplexity: 1.4151
+Please Input Text:
+```
+
+## Arguments
+
+```
+File Paths:
+  --model-name MODEL_NAME
+                        Seq2seq model name
+  --model-config-path MODEL_CONFIG_PATH
+                        model config file
+  --model-path MODEL_PATH
+                        pretrained model checkpoint
+  --sp-model-path SP_MODEL_PATH
+
+Inference Parameters:
+  --batch-size BATCH_SIZE
+  --prefetch-buffer-size PREFETCH_BUFFER_SIZE
+  --max-sequence-length MAX_SEQUENCE_LENGTH
+  --pad-id PAD_ID       Pad token id when tokenize with sentencepiece
+  --beam-size BEAM_SIZE
+                        not given, use greedy search else beam search with
+                        this value as beam size
+
+Other settings:
+  --mixed-precision     Use mixed precision FP16
+  --device DEVICE       device to train model
+```
+
 # Convert to savedmodel
 
 ## Example
