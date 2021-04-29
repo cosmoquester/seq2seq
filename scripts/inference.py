@@ -6,7 +6,7 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 
-from seq2seq.model import MODEL_MAP
+from seq2seq.model import create_model
 from seq2seq.search import Searcher
 from seq2seq.utils import get_device_strategy, get_logger
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
         # Model Initialize & Load pretrained model
         with tf.io.gfile.GFile(args.model_config_path) as f:
-            model = MODEL_MAP[args.model_name](**json.load(f))
+            model = create_model(args.model_name, json.load(f))
         model.load_weights(args.model_path)
         searcher = Searcher(model)
         logger.info("Loaded weights of model")
