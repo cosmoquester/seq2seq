@@ -2,11 +2,9 @@ import argparse
 import json
 import os
 import random
-from functools import partial
 
 import tensorflow as tf
 import tensorflow_text as text
-from tensorflow.python.framework import tensor_util
 from tensorflow_serving.apis import predict_pb2, prediction_log_pb2
 
 from seq2seq.model import create_model

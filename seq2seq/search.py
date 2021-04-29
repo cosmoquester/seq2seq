@@ -129,7 +129,7 @@ class Searcher:
             log_probs, new_tokens = tf.math.top_k(output, k=beam_size)
 
             # log_probs: [BatchSize, BeamSize] at first, [BatchSize, BeamSize ** 2] after second loops
-            # new_tokens: [BatchSize, 1]at first, [BatchSize * BeamSize, 1] after second loops
+            # new_tokens: [BatchSize, 1] at first, [BatchSize * BeamSize, 1] after second loops
             log_probs, new_tokens = tf.reshape(log_probs, [batch_size, -1]), tf.reshape(new_tokens, [-1, 1])
             is_end_sequences = tf.reshape(tf.repeat(has_eos(decoder_input), beam_size, axis=0), [batch_size, -1])
             log_probs = tf.where(is_end_sequences, tf.cast(0.0, log_probs.dtype), log_probs)
