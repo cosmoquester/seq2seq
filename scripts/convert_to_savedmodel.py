@@ -62,32 +62,28 @@ if __name__ == "__main__":
 
     logger = get_logger(__name__)
 
-    with open(args.model_config_path) as f:
-        model = create_model(args.model_name, json.load(f))
-    model.load_weights(args.model_weight_path)
-    searcher = Searcher(model)
-    logger.info("Loaded weights of model")
-
     with open(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
     bos_id, eos_id = tokenizer.tokenize("")
     logger.info("Loaded sentencepiece tokenizer")
 
+    with open(args.model_config_path) as f:
+        model = create_model(args.model_name, json.load(f))
+    model.load_weights(args.model_weight_path)
+    searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
+    logger.info("Loaded weights of model")
+
     @tf.function(input_signature=[tf.TensorSpec([None], tf.string), tf.TensorSpec([], tf.int32)])
     def generate_with_beam_search(texts, beam_size):
         tokens = tokenizer.tokenize(texts).to_tensor(default_value=args.pad_id)
-        decoded_tokens, perplexity = searcher.beam_search(
-            tokens, beam_size, bos_id, eos_id, args.max_sequence_length, args.pad_id, args.alpha, args.beta
-        )
+        decoded_tokens, perplexity = searcher.beam_search(tokens, beam_size, args.alpha, args.beta)
         sentences = tokenizer.detokenize(decoded_tokens).to_tensor()
         return {"sentences": sentences, "perplexity": perplexity}
 
     @tf.function(input_signature=[tf.TensorSpec([None], tf.string)])
     def generate_with_greedy_search(texts):
         tokens = tokenizer.tokenize(texts).to_tensor(default_value=args.pad_id)
-        decoded_tokens, perplexity = searcher.greedy_search(
-            tokens, bos_id, eos_id, args.max_sequence_length, args.pad_id
-        )
+        decoded_tokens, perplexity = searcher.greedy_search(tokens)
         sentences = tokenizer.detokenize(decoded_tokens)
         return {"sentences": sentences, "perplexity": perplexity}
 
