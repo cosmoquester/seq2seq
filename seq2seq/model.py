@@ -12,6 +12,23 @@ RNN_CELL_MAP: Dict[str, tf.keras.layers.Layer] = {
 }
 
 
+def create_model(model_name: str, model_config: Dict) -> tf.keras.Model:
+    """
+    Create Seq2Seq model
+
+    :param model_name: The name of model to create
+    :param model_config: Configs to initialize model
+    :return: Created model instance
+    """
+    if model_name in ["TransformerSeq2Seq", "transformer"]:
+        return TransformerSeq2Seq(**model_config)
+    elif model_name in ["RNNSeq2Seq", "rnn"]:
+        return RNNSeq2Seq(**model_config)
+    elif model_name in ["RNNSeq2SeqWithAttention", "attention"]:
+        return RNNSeq2SeqWithAttention(**model_config)
+    raise ValueError(f"Model Name: {model_name} is not valid!")
+
+
 class TransformerSeq2Seq(tf.keras.Model):
     """
     Seq2seq model using RNN cell.
@@ -299,10 +316,3 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         # [BatchSize, VocabSize]
         output = self.dense(decoder_input[:, -1, :])
         return output
-
-
-MODEL_MAP: Dict[str, tf.keras.Model] = {
-    "TransformerSeq2Seq": TransformerSeq2Seq,
-    "RNNSeq2Seq": RNNSeq2Seq,
-    "RNNSeq2SeqWithAttention": RNNSeq2SeqWithAttention,
-}

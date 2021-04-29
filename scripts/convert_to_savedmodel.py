@@ -9,7 +9,7 @@ import tensorflow_text as text
 from tensorflow.python.framework import tensor_util
 from tensorflow_serving.apis import predict_pb2, prediction_log_pb2
 
-from seq2seq.model import MODEL_MAP
+from seq2seq.model import create_model
 from seq2seq.search import Searcher
 from seq2seq.utils import get_logger
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     logger = get_logger(__name__)
 
     with open(args.model_config_path) as f:
-        model = MODEL_MAP[args.model_name](**json.load(f))
+        model = create_model(args.model_name, json.load(f))
     model.load_weights(args.model_weight_path)
     searcher = Searcher(model)
     logger.info("Loaded weights of model")
