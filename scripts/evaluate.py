@@ -7,7 +7,7 @@ import tensorflow_text as text
 from tqdm import tqdm
 
 from seq2seq.model import MODEL_MAP
-from seq2seq.search import beam_search, greedy_search
+from seq2seq.search import Searcher
 from seq2seq.utils import calculat_bleu_score, get_device_strategy, get_logger
 
 # fmt: off
@@ -72,6 +72,7 @@ if __name__ == "__main__":
             model = MODEL_MAP[args.model_name](**json.load(f))
         model((tf.keras.Input([None], dtype=tf.int32), tf.keras.Input([None], dtype=tf.int32)))
         model.load_weights(args.model_path)
+        searcher = Searcher(model)
         logger.info("Loaded weights of model")
 
         # Evaluate
@@ -83,13 +84,13 @@ if __name__ == "__main__":
         for batch_input, batch_true_answer in dataset_tqdm:
             num_batch = len(batch_true_answer)
             if args.beam_size > 0:
-                batch_pred_answer, perplexity = beam_search(
-                    model, batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length
+                batch_pred_answer, perplexity = searcher.beam_search(
+                    batch_input, args.beam_size, bos_id, eos_id, args.max_sequence_length
                 )
                 batch_pred_answer = batch_pred_answer[:, 0, :]
             else:
-                batch_pred_answer, perplexity = greedy_search(
-                    model, batch_input, bos_id, eos_id, args.max_sequence_length
+                batch_pred_answer, perplexity = searcher.greedy_search(
+                    batch_input, bos_id, eos_id, args.max_sequence_length
                 )
             perplexity_sum += tf.math.reduce_sum(perplexity).numpy()
 
