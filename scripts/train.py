@@ -1,5 +1,5 @@
 import argparse
-import json
+import yaml
 import sys
 
 import tensorflow as tf
@@ -13,7 +13,7 @@ from seq2seq.utils import LRScheduler, get_device_strategy, get_logger, path_joi
 parser = argparse.ArgumentParser("This is script to train seq2seq model")
 file_paths = parser.add_argument_group("File Paths")
 file_paths.add_argument("--model-name", type=str, default="RNNSeq2SeqWithAttention", help="Seq2seq model name")
-file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
+file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.yml", help="model config file")
 file_paths.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
 file_paths.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
 file_paths.add_argument("--output-path", default="output", help="output directory to save log and model checkpoints")
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     with tf.io.gfile.GFile(path_join(args.output_path, "argument_configs.txt"), "w") as fout:
         for k, v in vars(args).items():
             fout.write(f"{k}: {v}\n")
-    tf.io.gfile.copy(args.model_config_path, path_join(args.output_path, "model_config.json"))
+    tf.io.gfile.copy(args.model_config_path, path_join(args.output_path, "model_config.yml"))
 
     # Construct Dataset
     dataset_files = tf.io.gfile.glob(args.dataset_path)
@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
         # Model Initialize
         with tf.io.gfile.GFile(args.model_config_path) as f:
-            model = create_model(args.model_name, json.load(f))
+            model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
 
         model((tf.keras.Input([None]), tf.keras.Input([None])))
         model.summary()

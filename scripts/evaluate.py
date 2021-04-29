@@ -1,5 +1,5 @@
 import argparse
-import json
+import yaml
 import sys
 
 import tensorflow as tf
@@ -14,7 +14,7 @@ from seq2seq.utils import calculat_bleu_score, get_device_strategy, get_logger
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
 file_paths = parser.add_argument_group("File Paths")
 file_paths.add_argument("--model-name", type=str, default="RNNSeq2SeqWithAttention", help="Seq2seq model name")
-file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
+file_paths.add_argument("--model-config-path", type=str, default="resources/configs/rnn.yml", help="model config file")
 file_paths.add_argument("--dataset-path", required=True, help="a tsv file or multiple files ex) *.tsv")
 file_paths.add_argument("--model-path", type=str, required=True, help="pretrained model checkpoint")
 file_paths.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model")
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
         # Model Initialize & Load pretrained model
         with tf.io.gfile.GFile(args.model_config_path) as f:
-            model = create_model(args.model_name, json.load(f))
+            model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
         model((tf.keras.Input([None], dtype=tf.int32), tf.keras.Input([None], dtype=tf.int32)))
         model.load_weights(args.model_path)
         searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)

@@ -1,0 +1,6 @@
+cell_type: LSTM
+vocab_size: 16000
+hidden_dim: 256
+num_encoder_layers: 4
+num_decoder_layers: 4
+dropout: 0.15

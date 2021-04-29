@@ -19,7 +19,7 @@ $ python -m scripts.train \
 	--epoch 90 --steps-per-epoch 250 --auto-encoding \
 	--learning-rate 2e-4 \
 	--device gpu \
-	--tensorboard-update-freq 50 --model-name TransformerSeq2Seq --model-config-path resources/configs/transformer.json
+	--tensorboard-update-freq 50 --model-name TransformerSeq2Seq --model-config-path resources/configs/transformer.yml
 ```
 
 ## Arguments
@@ -84,7 +84,7 @@ You can start training by running script like below
 ```sh
 $ python -m scripts.evaluate \
     --model-path ~/Downloads/output/models/model-50epoch-nanloss_0.3870acc.ckpt \
-    --model-config-path ~/Downloads/output/model_config.json  \
+    --model-config-path ~/Downloads/output/model_config.yml  \
     --dataset-path test.txt \
     --auto-encoding \
     --beam-size 2 \
@@ -197,7 +197,7 @@ You can test your trained model interactively. If you want to finish, just enter
 $ python -m scripts.interactive \
     --model-name TransformerSeq2Seq \
     --model-path ~/model-28epoch-0.1396loss_0.9812acc.ckpt \
-    --model-config-path resources/configs/transformer.json
+    --model-config-path resources/configs/transformer.yml
 
 [2021-04-30 00:27:00,037] Loaded weights of model
 Please Input Text: 너 이름이 뭐야?
@@ -245,7 +245,7 @@ You can simply convert model checkpoint to savedmodel format.
 ```sh
 $ python -m scripts.convert_to_savedmodel \
     --model-name RNNSeq2SeqWithAttention \
-    --model-config-path ~/Downloads/output/model_config.json \
+    --model-config-path ~/Downloads/output/model_config.yml \
     --model-weight-path ~/Downloads/output/models/model-50epoch-nanloss_0.3870acc.ckpt \
     --output-path seq2seq-model/1
 

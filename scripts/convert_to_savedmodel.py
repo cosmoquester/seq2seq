@@ -1,5 +1,5 @@
 import argparse
-import json
+import yaml
 import os
 import random
 
@@ -14,7 +14,7 @@ from seq2seq.utils import get_logger
 # fmt: off
 parser = argparse.ArgumentParser()
 parser.add_argument("--model-name", type=str, default="RNNSeq2Seq", help="Seq2seq model name")
-parser.add_argument("--model-config-path", type=str, default="resources/configs/rnn.json", help="model config file")
+parser.add_argument("--model-config-path", type=str, default="resources/configs/rnn.yml", help="model config file")
 parser.add_argument("--model-weight-path", type=str, required=True, help="Model weight file path saved in training")
 parser.add_argument("--sp-model-path", type=str, default="resources/sp-model/sp_model_unigram_16K.model", help="sp tokenizer model path")
 parser.add_argument("--output-path", type=str, default="seq2seq-model/1", help="Savedmodel path")
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     logger.info("Loaded sentencepiece tokenizer")
 
     with open(args.model_config_path) as f:
-        model = create_model(args.model_name, json.load(f))
+        model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
     model.load_weights(args.model_weight_path)
     searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
     logger.info("Loaded weights of model")
