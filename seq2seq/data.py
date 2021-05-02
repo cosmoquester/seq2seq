@@ -36,7 +36,7 @@ def get_dataset(dataset_file_path: str, tokenizer: text.SentencepieceTokenizer, 
 
 
 def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
-    """ Read TFRecord dataset file and construct tensorflow dataset """
+    """Read TFRecord dataset file and construct tensorflow dataset"""
 
     decompose = tf.function(
         lambda serialized_example: (
@@ -54,7 +54,7 @@ def get_tfrecord_dataset(dataset_file_path: str) -> tf.data.Dataset:
 
 @tf.function
 def make_train_examples(source_tokens: tf.Tensor, target_tokens: tf.Tensor):
-    """ Make training examples from source and target tokens. """
+    """Make training examples from source and target tokens."""
     # Make training example
     num_examples = tf.shape(target_tokens)[0] - 1
 

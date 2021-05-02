@@ -9,7 +9,7 @@ from tensorflow.keras import backend as K
 
 
 class LRScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
-    """ Schedule learning rate linearly from max_learning_rate to min_learning_rate. """
+    """Schedule learning rate linearly from max_learning_rate to min_learning_rate."""
 
     def __init__(
         self,
@@ -41,14 +41,14 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def path_join(*paths: Iterable[str]) -> str:
-    """ Join paths to string local paths and google storage paths also """
+    """Join paths to string local paths and google storage paths also"""
     if paths[0].startswith("gs://"):
         return "/".join([path.strip("/") for path in paths])
     return os.path.join(*paths)
 
 
 def get_device_strategy(device) -> tf.distribute.Strategy:
-    """ Return tensorflow device strategy """
+    """Return tensorflow device strategy"""
     # Use TPU
     if device == "TPU":
         resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu=os.environ["TPU_NAME"])
