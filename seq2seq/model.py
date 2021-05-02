@@ -289,10 +289,13 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         states = None
         for encoder_layer in self.encoder:
             encoder_input, *states = encoder_layer(encoder_input, initial_state=states)
-        for decoder_layer in self.decoder:
-            decoder_output, *states = decoder_layer(decoder_input, initial_state=states)
+
+        decoder_output, *states = self.decoder[0](decoder_input, initial_state=states)
+        for decoder_layer in self.decoder[1:]:
             context = self.attention(states[0], encoder_input)[:, tf.newaxis, :]
             decoder_input = tf.concat([context, decoder_output], axis=1)
+            decoder_output, *states = decoder_layer(decoder_input, initial_state=states)
+            decoder_output = decoder_output[:, 1:, :]
 
         # [BatchSize, VocabSize]
         output = self.dense(decoder_input[:, -1, :])
