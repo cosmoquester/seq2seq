@@ -1,10 +1,10 @@
 import argparse
 import csv
-import yaml
 import sys
 
 import tensorflow as tf
 import tensorflow_text as text
+import yaml
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher

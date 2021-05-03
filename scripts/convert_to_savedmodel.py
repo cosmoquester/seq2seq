@@ -1,10 +1,10 @@
 import argparse
-import yaml
 import os
 import random
 
 import tensorflow as tf
 import tensorflow_text as text
+import yaml
 from tensorflow_serving.apis import predict_pb2, prediction_log_pb2
 
 from seq2seq.model import create_model

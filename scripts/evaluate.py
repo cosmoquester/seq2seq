@@ -1,9 +1,9 @@
 import argparse
-import yaml
 import sys
 
 import tensorflow as tf
 import tensorflow_text as text
+import yaml
 from tqdm import tqdm
 
 from seq2seq.model import create_model
