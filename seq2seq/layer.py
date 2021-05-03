@@ -1,6 +1,70 @@
+from typing import List, Optional, Union
+
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Dropout, Layer, LayerNormalization
+from tensorflow.keras.layers import GRU, LSTM, Dense, Dropout, Layer, LayerNormalization, SimpleRNN
+
+
+class BiRNN(Layer):
+    """
+    Custom Bi-directional RNN Wrapper because of issue.
+    https://github.com/tensorflow/tensorflow/issues/48880
+
+    Arguments:
+        rnn_class: RNN class, the class of SimpleRNN, LSTM, GRU.
+        units: Integer, the hidden dimension size of seq2seq rnn.
+        dropout: Float, dropout rate.
+        recurrent_dropout: Float, reccurent dropout rate.
+
+    Call arguments:
+        inputs: [BatchSize, SequenceLength, HiddenDim]
+
+    Output Shape:
+        output: `[BatchSize, SequenceLength, HiddenDim]`
+        state: `[BatchSize, HiddenDim]`
+    """
+
+    def __init__(
+        self,
+        rnn_class: Union[SimpleRNN, LSTM, GRU],
+        units: int,
+        dropout: float = 0.0,
+        recurrent_dropout: float = 0.0,
+        **kwargs,
+    ):
+        super(BiRNN, self).__init__(**kwargs)
+
+        self.forward_rnn = rnn_class(
+            units=units,
+            return_sequences=True,
+            return_state=True,
+            dropout=dropout,
+            recurrent_dropout=recurrent_dropout,
+            name="forward_rnn",
+        )
+        self.backward_rnn = rnn_class(
+            units=units,
+            return_sequences=True,
+            return_state=True,
+            dropout=dropout,
+            recurrent_dropout=recurrent_dropout,
+            go_backwards=True,
+            name="backward_rnn",
+        )
+
+    def call(self, inputs: tf.Tensor, initial_state: Optional[tf.Tensor] = None) -> List:
+        if initial_state is None:
+            forward_states = None
+            backward_states = None
+        else:
+            num_states = len(initial_state)
+            forward_states = initial_state[: num_states // 2]
+            backward_states = initial_state[num_states // 2 :]
+
+        forward_output, *forward_states = self.forward_rnn(inputs, initial_state=forward_states)
+        backward_output, *backward_states = self.backward_rnn(inputs, initial_state=backward_states)
+        output = tf.concat([forward_output, backward_output], axis=-1)
+        return [output] + forward_states + backward_states
 
 
 class BahdanauAttention(Layer):
