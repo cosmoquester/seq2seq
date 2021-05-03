@@ -1,7 +1,8 @@
 import argparse
-import yaml
+
 import tensorflow as tf
 import tensorflow_text as text
+import yaml
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher
