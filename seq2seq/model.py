@@ -1,9 +1,9 @@
 from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
-from tensorflow.keras.layers import GRU, LSTM, Bidirectional, Dense, Dropout, Embedding, Masking, SimpleRNN
+from tensorflow.keras.layers import GRU, LSTM, Dense, Dropout, Embedding, Masking, SimpleRNN
 
-from .layer import BahdanauAttention, PositionalEncoding, TransformerDecoderLayer, TransformerEncoderLayer
+from .layer import BahdanauAttention, BiRNN, PositionalEncoding, TransformerDecoderLayer, TransformerEncoderLayer
 
 RNN_CELL_MAP: Dict[str, tf.keras.layers.Layer] = {
     "SimpleRNN": SimpleRNN,
@@ -144,36 +144,28 @@ class RNNSeq2Seq(tf.keras.Model):
 
     def __init__(
         self,
-        cell_type,
-        vocab_size,
-        hidden_dim,
-        num_encoder_layers,
-        num_decoder_layers,
-        dropout,
-        pad_id=0,
+        cell_type: str,
+        vocab_size: int,
+        hidden_dim: int,
+        num_encoder_layers: int,
+        num_decoder_layers: int,
+        dropout: float,
+        pad_id: int = 0,
     ):
         super(RNNSeq2Seq, self).__init__()
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
+        cell_class = RNN_CELL_MAP[cell_type]
 
         self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
         self.pad_masking = Masking(pad_id, name="masking")
         self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
-            # SimpleRNN, LSTM, GRU
-            RNN_CELL_MAP[cell_type](
-                hidden_dim,
-                return_sequences=True,
-                return_state=True,
-                dropout=dropout,
-                recurrent_dropout=dropout,
-                name=f"encoder_layer{i}",
-            )
+            BiRNN(cell_class, hidden_dim // 2, dropout, dropout, name=f"encoder_layer{i}")
             for i in range(num_encoder_layers)
         ]
         self.decoder = [
-            # SimpleRNN, LSTM, GRU
-            RNN_CELL_MAP[cell_type](
+            cell_class(
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -197,6 +189,14 @@ class RNNSeq2Seq(tf.keras.Model):
         states = None
         for encoder_layer in self.encoder:
             encoder_input, *states = encoder_layer(encoder_input, initial_state=states)
+
+        # Concat Forward-Backward states
+        if len(states) == 2:
+            states = (tf.concat(states, axis=-1),)
+        elif len(states) == 4:
+            states = (tf.concat(states[::2], axis=-1), tf.concat(states[1::2], axis=-1))
+
+        # [BatchSize, SequenceLength, HiddenDim]
         for decoder_layer in self.decoder:
             decoder_input, *states = decoder_layer(decoder_input, initial_state=states)
 
@@ -235,36 +235,28 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
 
     def __init__(
         self,
-        cell_type,
-        vocab_size,
-        hidden_dim,
-        num_encoder_layers,
-        num_decoder_layers,
-        dropout,
-        pad_id=0,
+        cell_type: str,
+        vocab_size: int,
+        hidden_dim: int,
+        num_encoder_layers: int,
+        num_decoder_layers: int,
+        dropout: float,
+        pad_id: int = 0,
     ):
         super(RNNSeq2SeqWithAttention, self).__init__()
 
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
+        cell_class = RNN_CELL_MAP[cell_type]
 
         self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
         self.pad_masking = Masking(pad_id, name="masking")
         self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
-            # SimpleRNN, LSTM, GRU
-            RNN_CELL_MAP[cell_type](
-                hidden_dim,
-                return_sequences=True,
-                return_state=True,
-                dropout=dropout,
-                recurrent_dropout=dropout,
-                name=f"encoder_layer{i}",
-            )
+            BiRNN(cell_class, hidden_dim // 2, dropout, dropout, name=f"encoder_layer{i}")
             for i in range(num_encoder_layers)
         ]
         self.decoder = [
-            # SimpleRNN, LSTM, GRU
-            RNN_CELL_MAP[cell_type](
+            cell_class(
                 hidden_dim,
                 return_sequences=True,
                 return_state=True,
@@ -290,6 +282,12 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         for encoder_layer in self.encoder:
             encoder_input, *states = encoder_layer(encoder_input, initial_state=states)
 
+        # Concat Forward-Backward states
+        if len(states) == 2:
+            states = (tf.concat(states, axis=-1),)
+        elif len(states) == 4:
+            states = (tf.concat(states[::2], axis=-1), tf.concat(states[1::2], axis=-1))
+
         decoder_output, *states = self.decoder[0](decoder_input, initial_state=states)
         for decoder_layer in self.decoder[1:]:
             context = self.attention(states[0], encoder_input)[:, tf.newaxis, :]
@@ -298,5 +296,5 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             decoder_output = decoder_output[:, 1:, :]
 
         # [BatchSize, VocabSize]
-        output = self.dense(decoder_input[:, -1, :])
+        output = self.dense(decoder_output[:, -1, :])
         return output
