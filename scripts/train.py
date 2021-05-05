@@ -41,7 +41,7 @@ other_settings.add_argument("--auto-encoding", action="store_true", help="train 
 other_settings.add_argument("--use-tfrecord", action="store_true", help="train using tfrecord dataset")
 other_settings.add_argument("--debug-nan-loss", action="store_true", help="Trainin with this flag, print the number of Nan loss (not supported on TPU)")
 other_settings.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device to train model")
-other_settings.add_argument("--max-over-sequence-policy", type=str, default="filter", choices=["filter", "slice"], help="Policy for sequences of which length is over the max")
+other_settings.add_argument("--max-over-sequence-policy", type=str, choices=["filter", "slice"], help="Policy for sequences of which length is over the max")
 # fmt: on
 
 
@@ -115,8 +115,12 @@ if __name__ == "__main__":
         # Filter or Slice
         if args.max_over_sequence_policy == "filter":
             dataset = dataset.filter(filter_fn)
-        else:
+            logger.info(f"Filter examples whose sequence length is over than {args.max_sequence_length}")
+        elif args.max_over_sequence_policy == "slice":
             dataset = dataset.map(slice_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            logger.info(f"Slice examples whose sequence length is over than {args.max_sequence_length}")
+        elif args.device == "TPU":
+            raise RuntimeError(f"You should set max-over-sequence-policy with TPU!")
 
         dataset = (
             dataset.shuffle(args.shuffle_buffer_size)
@@ -124,13 +128,14 @@ if __name__ == "__main__":
             .unbatch()
         )
 
+        pad_length = None if args.device != "TPU" else args.max_sequence_length
         train_dataset = (
             dataset.skip(args.num_dev_dataset)
-            .padded_batch(args.batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ()))
+            .padded_batch(args.batch_size, (([pad_length], [pad_length]), ()))
             .prefetch(args.prefetch_buffer_size)
         )
         dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(
-            args.dev_batch_size, (([args.max_sequence_length], [args.max_sequence_length]), ())
+            args.dev_batch_size, (([pad_length], [pad_length]), ())
         )
 
         if args.steps_per_epoch:
