@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Tuple
 
 import tensorflow as tf
-from tensorflow.keras.layers import GRU, LSTM, Dense, Dropout, Embedding, Masking, SimpleRNN
+from tensorflow.keras.layers import GRU, LSTM, Dense, Dropout, Embedding, SimpleRNN
 
 from .layer import BahdanauAttention, BiRNN, PositionalEncoding, TransformerDecoderLayer, TransformerEncoderLayer
 
@@ -157,8 +157,9 @@ class RNNSeq2Seq(tf.keras.Model):
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
         cell_class = RNN_CELL_MAP[cell_type]
 
+        self.pad_id = pad_id
+
         self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
-        self.pad_masking = Masking(pad_id, name="masking")
         self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
             BiRNN(cell_class, hidden_dim // 2, dropout, dropout, name=f"encoder_layer{i}")
@@ -180,15 +181,17 @@ class RNNSeq2Seq(tf.keras.Model):
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs
+        encoder_mask = encoder_tokens != self.pad_id
+        decoder_mask = decoder_tokens != self.pad_id
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.dropout(self.pad_masking(self.embedding(encoder_tokens)))
-        decoder_input = self.dropout(self.pad_masking(self.embedding(decoder_tokens)))
+        encoder_input = self.dropout(self.embedding(encoder_tokens))
+        decoder_input = self.dropout(self.embedding(decoder_tokens))
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
         for encoder_layer in self.encoder:
-            encoder_input, *states = encoder_layer(encoder_input, initial_state=states)
+            encoder_input, *states = encoder_layer(encoder_input, mask=encoder_mask, initial_state=states)
 
         # Concat Forward-Backward states
         if len(states) == 2:
@@ -198,7 +201,7 @@ class RNNSeq2Seq(tf.keras.Model):
 
         # [BatchSize, SequenceLength, HiddenDim]
         for decoder_layer in self.decoder:
-            decoder_input, *states = decoder_layer(decoder_input, initial_state=states)
+            decoder_input, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
 
         # [BatchSize, VocabSize]
         output = self.dense(decoder_input[:, -1, :])
@@ -248,8 +251,9 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         assert cell_type in RNN_CELL_MAP, "RNN type is not valid!"
         cell_class = RNN_CELL_MAP[cell_type]
 
+        self.pad_id = pad_id
+
         self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
-        self.pad_masking = Masking(pad_id, name="masking")
         self.dropout = Dropout(dropout, name="dropout")
         self.encoder = [
             BiRNN(cell_class, hidden_dim // 2, dropout, dropout, name=f"encoder_layer{i}")
@@ -272,15 +276,17 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
 
     def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], training: Optional[bool] = None):
         encoder_tokens, decoder_tokens = inputs
+        encoder_mask = encoder_tokens != self.pad_id
+        decoder_mask = decoder_tokens != self.pad_id
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.dropout(self.pad_masking(self.embedding(encoder_tokens)))
-        decoder_input = self.dropout(self.pad_masking(self.embedding(decoder_tokens)))
+        encoder_input = self.dropout(self.embedding(encoder_tokens))
+        decoder_input = self.dropout(self.embedding(decoder_tokens))
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
         for encoder_layer in self.encoder:
-            encoder_input, *states = encoder_layer(encoder_input, initial_state=states)
+            encoder_input, *states = encoder_layer(encoder_input, mask=encoder_mask, initial_state=states)
 
         # Concat Forward-Backward states
         if len(states) == 2:
@@ -288,11 +294,12 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         elif len(states) == 4:
             states = (tf.concat(states[::2], axis=-1), tf.concat(states[1::2], axis=-1))
 
-        decoder_output, *states = self.decoder[0](decoder_input, initial_state=states)
+        decoder_output, *states = self.decoder[0](decoder_input, mask=decoder_mask, initial_state=states)
+        decoder_mask = tf.concat([tf.ones([tf.shape(decoder_mask)[0], 1], tf.bool), decoder_mask], axis=1)
         for decoder_layer in self.decoder[1:]:
             context = self.attention(states[0], encoder_input)[:, tf.newaxis, :]
             decoder_input = tf.concat([context, decoder_output], axis=1)
-            decoder_output, *states = decoder_layer(decoder_input, initial_state=states)
+            decoder_output, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
             decoder_output = decoder_output[:, 1:, :]
 
         # [BatchSize, VocabSize]
