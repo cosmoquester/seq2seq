@@ -52,7 +52,7 @@ class BiRNN(Layer):
             name="backward_rnn",
         )
 
-    def call(self, inputs: tf.Tensor, initial_state: Optional[tf.Tensor] = None) -> List:
+    def call(self, inputs: tf.Tensor, mask: tf.Tensor, initial_state: Optional[tf.Tensor] = None) -> List:
         if initial_state is None:
             forward_states = None
             backward_states = None
@@ -61,8 +61,8 @@ class BiRNN(Layer):
             forward_states = initial_state[: num_states // 2]
             backward_states = initial_state[num_states // 2 :]
 
-        forward_output, *forward_states = self.forward_rnn(inputs, initial_state=forward_states)
-        backward_output, *backward_states = self.backward_rnn(inputs, initial_state=backward_states)
+        forward_output, *forward_states = self.forward_rnn(inputs, mask=mask, initial_state=forward_states)
+        backward_output, *backward_states = self.backward_rnn(inputs, mask=mask, initial_state=backward_states)
         output = tf.concat([forward_output, backward_output], axis=-1)
         return [output] + forward_states + backward_states
 

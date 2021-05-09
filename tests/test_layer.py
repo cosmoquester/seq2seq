@@ -25,7 +25,7 @@ def test_bi_rnn_shape(rnn_class, units, dropout, recurrent_dropout, batch_size, 
     birnn = BiRNN(rnn_class, units, dropout, recurrent_dropout)
 
     inputs = tf.random.uniform([batch_size, sequence_length, units])
-    output, *states = birnn(inputs)
+    output, *states = birnn(inputs, tf.ones([batch_size, sequence_length], tf.bool))
 
     assert len(states) % 2 == 0
     tf.debugging.assert_equal(tf.shape(output), [batch_size, sequence_length, units * 2])
