@@ -18,6 +18,8 @@ class BiRNN(Layer):
 
     Call arguments:
         inputs: [BatchSize, SequenceLength, HiddenDim]
+        mask: [BatchSize, SequenceLength]
+        initial_state: Tuple of [BatchSize, HiddenDim]
 
     Output Shape:
         output: `[BatchSize, SequenceLength, HiddenDim]`
