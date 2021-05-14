@@ -7,6 +7,8 @@ This is seq2seq model structures with Tensorflow 2.
 There are three model architectures, RNNSeq2Seq, RNNSeq2SeqWithAttention, TransformerSeq2Seq.
 
 This repository contains train, evaulate, inference, converting to savedmodel format scripts.
+
+이 코드를 이용해 학습하고 실험한 결과는 [Tensorflow2 기반 Seq2Seq 모델, 학습, 서빙 코드 구현](https://cosmoquester.github.io/seq2seq/) 에서 볼 수 있습니다. (한국어)
 # Train
 
 ## Example
