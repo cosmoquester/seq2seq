@@ -79,6 +79,8 @@ class BahdanauAttention(Layer):
     Call arguments:
         decoder_hidden: [BatchSize, HiddenDim]
         encoder_hiddens: [BatchSize, SequenceLength, HiddenDim]
+        mask: [BatchSize, SequenceLength]
+            Bool type tensor. The timesteps which has zero value will be ignored.
 
 
     Output Shape:
@@ -93,7 +95,7 @@ class BahdanauAttention(Layer):
         self.Ws = Dense(hidden_dim, name="value_converter")
         self.V = Dense(1, name="score")
 
-    def call(self, decoder_hidden: tf.Tensor, encoder_hiddens: tf.Tensor):
+    def call(self, decoder_hidden: tf.Tensor, encoder_hiddens: tf.Tensor, mask: tf.Tensor):
         # [BatchSize, HiddenDim]
         query = self.Wh(decoder_hidden)
         # [BatchSize, SequenceLength, HiddenDim]
@@ -101,6 +103,7 @@ class BahdanauAttention(Layer):
 
         # [BatchSize, SequenceLength, 1]
         score = self.V(tf.nn.tanh(tf.expand_dims(query, axis=1) + values))
+        score -= 1e9 * (1.0 - tf.cast(tf.expand_dims(mask, axis=2), tf.float32))
         attention = tf.nn.softmax(score, axis=1)
 
         # [BatchSize, HiddenDim]
