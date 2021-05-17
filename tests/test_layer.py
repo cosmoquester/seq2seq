@@ -37,7 +37,11 @@ def test_bahdanau_attention_shape():
     hidden_dim = 123
     sequence_length = 32
 
-    inputs = (tf.random.normal((batch_size, hidden_dim)), tf.random.normal((batch_size, sequence_length, hidden_dim)))
+    inputs = (
+        tf.random.normal((batch_size, hidden_dim)),
+        tf.random.normal((batch_size, sequence_length, hidden_dim)),
+        tf.random.normal((batch_size, sequence_length)) > 0.5,
+    )
     attention = BahdanauAttention(hidden_dim)
 
     output = attention(*inputs)
