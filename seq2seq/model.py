@@ -203,8 +203,14 @@ class RNNSeq2Seq(tf.keras.Model):
         for decoder_layer in self.decoder:
             decoder_input, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
 
+        # Get last output manually because of issue https://github.com/tensorflow/tensorflow/issues/49241
+        last_sequence_index = tf.math.count_nonzero(decoder_mask, axis=1) - 1
+        last_sequence_output = tf.boolean_mask(
+            decoder_input, tf.one_hot(last_sequence_index, tf.shape(decoder_input)[1]), axis=0
+        )
+
         # [BatchSize, VocabSize]
-        output = self.dense(decoder_input[:, -1, :])
+        output = self.dense(last_sequence_output)
         return output
 
 
@@ -295,13 +301,19 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             states = (tf.concat(states[::2], axis=-1), tf.concat(states[1::2], axis=-1))
 
         decoder_output, *states = self.decoder[0](decoder_input, mask=decoder_mask, initial_state=states)
-        decoder_mask = tf.concat([tf.ones([tf.shape(decoder_mask)[0], 1], tf.bool), decoder_mask], axis=1)
+        decoder_mask = tf.concat([decoder_mask[:, :1], decoder_mask], axis=1)
         for decoder_layer in self.decoder[1:]:
             context = self.attention(states[0], encoder_input, encoder_mask)[:, tf.newaxis, :]
             decoder_input = tf.concat([context, decoder_output], axis=1)
             decoder_output, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
             decoder_output = decoder_output[:, 1:, :]
 
+        # Get last output manually because of issue https://github.com/tensorflow/tensorflow/issues/49241
+        last_sequence_index = tf.math.count_nonzero(decoder_mask[:, 1:], axis=1) - 1
+        last_sequence_output = tf.boolean_mask(
+            decoder_input, tf.one_hot(last_sequence_index, tf.shape(decoder_input)[1]), axis=0
+        )
+
         # [BatchSize, VocabSize]
-        output = self.dense(decoder_output[:, -1, :])
+        output = self.dense(last_sequence_output)
         return output
