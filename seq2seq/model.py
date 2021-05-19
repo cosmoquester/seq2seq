@@ -204,9 +204,10 @@ class RNNSeq2Seq(tf.keras.Model):
             decoder_input, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
 
         # Get last output manually because of issue https://github.com/tensorflow/tensorflow/issues/49241
+        token_length = decoder_input.shape[1] or tf.shape(decoder_input)[1]
         last_sequence_index = tf.math.count_nonzero(decoder_mask, axis=1) - 1
-        last_sequence_output = tf.boolean_mask(
-            decoder_input, tf.one_hot(last_sequence_index, tf.shape(decoder_input)[1]), axis=0
+        last_sequence_output = tf.reduce_sum(
+            decoder_input * tf.one_hot(last_sequence_index, token_length)[:, :, tf.newaxis], axis=1
         )
 
         # [BatchSize, VocabSize]
@@ -309,9 +310,10 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             decoder_output = decoder_output[:, 1:, :]
 
         # Get last output manually because of issue https://github.com/tensorflow/tensorflow/issues/49241
+        token_length = decoder_input.shape[1] or tf.shape(decoder_input)[1]
         last_sequence_index = tf.math.count_nonzero(decoder_mask[:, 1:], axis=1) - 1
-        last_sequence_output = tf.boolean_mask(
-            decoder_input, tf.one_hot(last_sequence_index, tf.shape(decoder_input)[1]), axis=0
+        last_sequence_output = tf.reduce_sum(
+            decoder_input * tf.one_hot(last_sequence_index, token_length)[:, :, tf.newaxis], axis=1
         )
 
         # [BatchSize, VocabSize]
