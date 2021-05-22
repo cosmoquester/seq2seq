@@ -8,7 +8,7 @@ import yaml
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher
-from seq2seq.utils import get_device_strategy, get_logger
+from seq2seq.utils import get_device_strategy, get_logger, set_mixed_precision
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
@@ -33,16 +33,14 @@ arg_group.add_argument("--save-pair", action="store_true", help="save result as 
 arg_group.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device")
 # fmt: on
 
-if __name__ == "__main__":
-    args = parser.parse_args()
+
+def main(args: argparse.Namespace):
     strategy = get_device_strategy(args.device)
 
     logger = get_logger(__name__)
 
     if args.mixed_precision:
-        mixed_type = "mixed_bfloat16" if args.device == "TPU" else "mixed_float16"
-        policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
-        tf.keras.mixed_precision.experimental.set_policy(policy)
+        set_mixed_precision(args.device)
         logger.info("Use Mixed Precision FP16")
 
     # Construct Dataset
@@ -98,3 +96,7 @@ if __name__ == "__main__":
                 for line in outputs:
                     fout.write(line + "\n")
             logger.info(f"Saved generated sentences to {args.output_path}")
+
+
+if __name__ == "__main__":
+    sys.exit(main(parser.parse_args()))

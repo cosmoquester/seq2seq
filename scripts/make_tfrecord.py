@@ -1,6 +1,7 @@
 import argparse
 import glob
 import os
+import sys
 
 import tensorflow as tf
 import tensorflow_text as text
@@ -43,8 +44,7 @@ def read_data(file_path: str, tokenizer: text.SentencepieceTokenizer, auto_encod
     return dataset
 
 
-if __name__ == "__main__":
-    args = parser.parse_args()
+def main(args: argparse.Namespace):
     input_files = glob.glob(args.input_path)
 
     # Load Sentencepiece model
@@ -60,3 +60,7 @@ if __name__ == "__main__":
         dataset = read_data(file_path, tokenizer, args.auto_encoding)
         writer = tf.data.experimental.TFRecordWriter(output_path, "GZIP")
         writer.write(dataset)
+
+
+if __name__ == "__main__":
+    sys.exit(main(parser.parse_args()))

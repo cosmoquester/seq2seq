@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher
-from seq2seq.utils import calculat_bleu_score, get_device_strategy, get_logger
+from seq2seq.utils import calculat_bleu_score, get_device_strategy, get_logger, set_mixed_precision
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
@@ -33,16 +33,15 @@ arg_group.add_argument("--auto-encoding", action="store_true", help="evaluate by
 arg_group.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device")
 # fmt: on
 
-if __name__ == "__main__":
+
+def main(args: argparse.Namespace):
     args = parser.parse_args()
     strategy = get_device_strategy(args.device)
 
     logger = get_logger(__name__)
 
     if args.mixed_precision:
-        mixed_type = "mixed_bfloat16" if args.device == "TPU" else "mixed_float16"
-        policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
-        tf.keras.mixed_precision.experimental.set_policy(policy)
+        set_mixed_precision(args.device)
         logger.info("Use Mixed Precision FP16")
 
     # Construct Dataset
@@ -100,3 +99,7 @@ if __name__ == "__main__":
 
         logger.info("Finished evalaution!")
         logger.info(f"Perplexity: {perplexity_sum / total}, BLEU: {bleu_sum / total}")
+
+
+if __name__ == "__main__":
+    sys.exit(main(parser.parse_args()))

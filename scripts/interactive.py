@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 import tensorflow as tf
 import tensorflow_text as text
@@ -6,7 +7,7 @@ import yaml
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher
-from seq2seq.utils import get_logger
+from seq2seq.utils import get_logger, set_mixed_precision
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
@@ -28,14 +29,12 @@ arg_group.add_argument("--mixed-precision", action="store_true", help="Use mixed
 arg_group.add_argument("--device", type=str, default="CPU", choices= ["CPU", "GPU", "TPU"], help="device")
 # fmt: on
 
-if __name__ == "__main__":
-    args = parser.parse_args()
+
+def main(args: argparse.Namespace):
     logger = get_logger(__name__)
 
     if args.mixed_precision:
-        mixed_type = "mixed_bfloat16" if args.device == "TPU" else "mixed_float16"
-        policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
-        tf.keras.mixed_precision.experimental.set_policy(policy)
+        set_mixed_precision(args.device)
         logger.info("Use Mixed Precision FP16")
 
     # Load Tokenizer
@@ -68,3 +67,7 @@ if __name__ == "__main__":
             output, ppl = searcher.greedy_search(encoder_input)
             output = tokenizer.detokenize(output[0]).numpy().decode("UTF8")
             print(f"Output: {output}, Perplexity: {ppl.numpy()[0]:.4f}")
+
+
+if __name__ == "__main__":
+    sys.exit(main(parser.parse_args()))

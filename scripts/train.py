@@ -5,15 +5,22 @@ import tensorflow as tf
 import tensorflow_text as text
 import yaml
 
-from seq2seq.data import get_dataset, get_tfrecord_dataset, make_train_examples
+from seq2seq.data import filter_example, get_dataset, get_tfrecord_dataset, make_train_examples, slice_example
 from seq2seq.model import create_model
-from seq2seq.utils import LRScheduler, get_device_strategy, get_logger, path_join
+from seq2seq.utils import (
+    LRScheduler,
+    get_device_strategy,
+    get_logger,
+    path_join,
+    set_mixed_precision,
+    sparse_categorical_crossentropy_nan_debug,
+)
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to train seq2seq model")
 arg_group = parser.add_argument_group("File Paths")
-arg_group.add_argument("--model-name", type=str, default="RNNSeq2SeqWithAttention", help="Seq2seq model name")
-arg_group.add_argument("--model-config-path", type=str, default="resources/configs/rnn.yml", help="model config file")
+arg_group.add_argument("--model-name", type=str, default="transformer", help="Seq2seq model name")
+arg_group.add_argument("--model-config-path", type=str, default="resources/configs/transformer.yml", help="model config file")
 arg_group.add_argument("--dataset-path", required=True, help="a text file or multiple files ex) *.txt")
 arg_group.add_argument("--pretrained-model-path", type=str, default=None, help="pretrained model checkpoint")
 arg_group.add_argument("--output-path", default="output", help="output directory to save log and model checkpoints")
@@ -45,38 +52,14 @@ arg_group.add_argument("--max-over-sequence-policy", type=str, choices=["filter"
 # fmt: on
 
 
-def sparse_categorical_crossentropy(y_true, y_pred):
-    pred_nan = tf.math.is_nan(y_pred)
-    if tf.math.reduce_any(pred_nan):
-        tf.print(
-            "\nWarning:",
-            "The",
-            tf.size(tf.where(pred_nan)),
-            "number of output values are Nan!\n",
-            output_stream=sys.stderr,
-        )
-
-    loss = tf.losses.sparse_categorical_crossentropy(y_true, y_pred, True)
-    is_nan = tf.math.is_nan(loss)
-    if tf.math.reduce_any(is_nan):
-        tf.print(
-            "\nWarning:", "The", tf.size(tf.where(is_nan)), "number of losses are Nan!\n", output_stream=sys.stderr
-        )
-        loss = tf.boolean_mask(loss, tf.logical_not(is_nan))
-    return loss
-
-
-if __name__ == "__main__":
-    args = parser.parse_args()
+def main(args: argparse.Namespace):
     strategy = get_device_strategy(args.device)
 
     logger = get_logger(__name__)
 
     if args.mixed_precision:
-        mixed_type = "mixed_bfloat16" if args.device == "TPU" else "mixed_float16"
-        policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
-        tf.keras.mixed_precision.experimental.set_policy(policy)
-        logger.info("Use Mixed Precision FP16")
+        set_mixed_precision(args.device)
+        logger.info("[+] Use Mixed Precision FP16")
 
     # Copy config file
     tf.io.gfile.makedirs(args.output_path)
@@ -85,76 +68,63 @@ if __name__ == "__main__":
             fout.write(f"{k}: {v}\n")
     tf.io.gfile.copy(args.model_config_path, path_join(args.output_path, "model_config.yml"))
 
-    # Construct Dataset
     dataset_files = tf.io.gfile.glob(args.dataset_path)
     if not dataset_files:
-        logger.error("[Error] Dataset path is invalid!")
-        sys.exit(1)
+        raise RuntimeError("Dataset path is invalid!")
 
+    logger.info("[+] Load Tokenizer")
     with tf.io.gfile.GFile(args.sp_model_path, "rb") as f:
         tokenizer = text.SentencepieceTokenizer(f.read(), add_bos=True, add_eos=True)
 
     with strategy.scope():
-        filter_fn = tf.function(
-            lambda source_tokens, target_tokens: tf.math.logical_and(
-                tf.size(source_tokens) < args.max_sequence_length, tf.size(target_tokens) < args.max_sequence_length
-            )
-        )
-        slice_fn = tf.function(
-            lambda source_tokens, target_tokens: (
-                source_tokens[: args.max_sequence_length],
-                target_tokens[: args.max_sequence_length],
-            )
-        )
-
+        logger.info("[+] Load Dataset")
         if args.use_tfrecord:
             dataset = get_tfrecord_dataset(dataset_files)
         else:
             dataset = get_dataset(dataset_files, tokenizer, args.auto_encoding)
 
-        # Filter or Slice
+        # Apply policy for sequences whose length is over than max sequence length
         if args.max_over_sequence_policy == "filter":
-            dataset = dataset.filter(filter_fn)
-            logger.info(f"Filter examples whose sequence length is over than {args.max_sequence_length}")
+            logger.info(f"[+] Filter examples whose sequence length is over than {args.max_sequence_length}")
+            dataset = dataset.filter(filter_example(args.max_sequence_length))
         elif args.max_over_sequence_policy == "slice":
-            dataset = dataset.map(slice_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            logger.info(f"Slice examples whose sequence length is over than {args.max_sequence_length}")
+            logger.info(f"[+] Slice examples whose sequence length is over than {args.max_sequence_length}")
+            dataset = dataset.map(
+                slice_example(args.max_sequence_length), num_parallel_calls=tf.data.experimental.AUTOTUNE
+            )
         elif args.device == "TPU":
             raise RuntimeError(f"You should set max-over-sequence-policy with TPU!")
 
-        dataset = (
-            dataset.shuffle(args.shuffle_buffer_size)
-            .map(make_train_examples, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            .unbatch()
+        # Make into Training Examples
+        dataset = dataset.shuffle(args.shuffle_buffer_size).map(
+            make_train_examples, num_parallel_calls=tf.data.experimental.AUTOTUNE
         )
-
-        pad_length = None if args.device != "TPU" else args.max_sequence_length
-        train_dataset = (
-            dataset.skip(args.num_dev_dataset)
-            .padded_batch(args.batch_size, (([pad_length], [pad_length]), ()))
-            .prefetch(args.prefetch_buffer_size)
-        )
-        dev_dataset = dataset.take(args.num_dev_dataset).padded_batch(
-            args.dev_batch_size, (([pad_length], [pad_length]), ())
-        )
+        train_dataset = dataset.skip(args.num_dev_dataset).unbatch()
+        dev_dataset = dataset.take(args.num_dev_dataset).unbatch()
 
         if args.steps_per_epoch:
+            logger.info("[+] Repeat dataset")
             train_dataset = train_dataset.repeat()
-            logger.info("Repeat dataset")
 
-        # Model Initialize
+        # Batching
+        pad_length = None if args.device != "TPU" else args.max_sequence_length
+        train_dataset = train_dataset.padded_batch(args.batch_size, (([pad_length], [pad_length]), ())).prefetch(
+            args.prefetch_buffer_size
+        )
+        dev_dataset = dev_dataset.padded_batch(args.dev_batch_size, (([pad_length], [pad_length]), ()))
+
+        logger.info("[+] Initialze Model")
         with tf.io.gfile.GFile(args.model_config_path) as f:
             model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
 
         model((tf.keras.Input([None]), tf.keras.Input([None])))
         model.summary()
 
-        # Load pretrained model
         if args.pretrained_model_path:
+            logger.info("[+] Load weights of trained model")
             model.load_weights(args.pretrained_model_path)
-            logger.info("Loaded weights of model")
 
-        # Model Compile
+        logger.info("[+] Compile Model")
         total_steps = (args.num_total_dataset - args.num_dev_dataset) // args.batch_size
         learning_rate = LRScheduler(
             total_steps, args.learning_rate, args.min_learning_rate, args.warmup_rate, args.warmup_steps
@@ -163,13 +133,11 @@ if __name__ == "__main__":
             optimizer=tf.optimizers.Adam(learning_rate),
             loss=tf.losses.SparseCategoricalCrossentropy(from_logits=True)
             if not args.debug_nan_loss
-            else sparse_categorical_crossentropy,
+            else sparse_categorical_crossentropy_nan_debug,
             metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
         )
-        logger.info("Model compiling complete")
-        logger.info("Start training")
 
-        # Training
+        logger.info("[+] Start training")
         model.fit(
             train_dataset,
             validation_data=dev_dataset,
@@ -191,4 +159,8 @@ if __name__ == "__main__":
                 ),
             ],
         )
-        logger.info("Finished training!")
+        logger.info("[+] Finished training!")
+
+
+if __name__ == "__main__":
+    sys.exit(main(parser.parse_args()))
