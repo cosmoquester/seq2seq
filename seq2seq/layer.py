@@ -103,7 +103,7 @@ class BahdanauAttention(Layer):
 
         # [BatchSize, SequenceLength, 1]
         score = self.V(tf.nn.tanh(tf.expand_dims(query, axis=1) + values))
-        score -= 1e9 * (1.0 - tf.cast(tf.expand_dims(mask, axis=2), tf.float32))
+        score -= 1e9 * (1.0 - tf.cast(tf.expand_dims(mask, axis=2), score.dtype))
         attention = tf.nn.softmax(score, axis=1)
 
         # [BatchSize, HiddenDim]
