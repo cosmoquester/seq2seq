@@ -101,7 +101,7 @@ def n_gram_precision(true_tokens, pred_tokens, n):
     return correct / len(true_n_grams)
 
 
-def calculat_bleu_score(true_tokens, pred_tokens):
+def calculate_bleu_score(true_tokens, pred_tokens):
     n_gram_score = 1.0
     for n in range(1, 5):
         n_gram_score *= n_gram_precision(true_tokens, pred_tokens, n)

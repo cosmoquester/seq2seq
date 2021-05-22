@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher
-from seq2seq.utils import calculat_bleu_score, get_device_strategy, get_logger, set_mixed_precision
+from seq2seq.utils import calculate_bleu_score, get_device_strategy, get_logger, set_mixed_precision
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
@@ -92,7 +92,7 @@ def main(args: argparse.Namespace):
             perplexity_sum += tf.math.reduce_sum(perplexity).numpy()
 
             for true_answer, pred_answer in zip(batch_true_answer, batch_pred_answer):
-                bleu_sum += calculat_bleu_score(true_answer.numpy().tolist(), pred_answer.numpy().tolist())
+                bleu_sum += calculate_bleu_score(true_answer.numpy().tolist(), pred_answer.numpy().tolist())
 
             total += num_batch
             dataset_tqdm.set_description(f"Perplexity: {perplexity_sum / total}, BLEU: {bleu_sum / total}")
