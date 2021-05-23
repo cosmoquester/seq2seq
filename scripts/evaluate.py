@@ -4,11 +4,12 @@ import sys
 import tensorflow as tf
 import tensorflow_text as text
 import yaml
+from nltk.translate.bleu_score import sentence_bleu
 from tqdm import tqdm
 
 from seq2seq.model import create_model
 from seq2seq.search import Searcher
-from seq2seq.utils import calculate_bleu_score, get_device_strategy, get_logger, set_mixed_precision
+from seq2seq.utils import get_device_strategy, get_logger, set_mixed_precision
 
 # fmt: off
 parser = argparse.ArgumentParser("This is script to inferece (generate sentence) with seq2seq model")
@@ -72,8 +73,8 @@ def main(args: argparse.Namespace):
         # Model Initialize & Load pretrained model
         with tf.io.gfile.GFile(args.model_config_path) as f:
             model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
-        model((tf.keras.Input([None], dtype=tf.int32), tf.keras.Input([None], dtype=tf.int32)))
-        model.load_weights(args.model_path)
+        checkpoint = tf.train.Checkpoint(model)
+        checkpoint.restore(args.model_path).expect_partial()
         searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
         logger.info("Loaded weights of model")
 
@@ -92,7 +93,7 @@ def main(args: argparse.Namespace):
             perplexity_sum += tf.math.reduce_sum(perplexity).numpy()
 
             for true_answer, pred_answer in zip(batch_true_answer, batch_pred_answer):
-                bleu_sum += calculate_bleu_score(true_answer.numpy().tolist(), pred_answer.numpy().tolist())
+                bleu_sum += sentence_bleu([true_answer.numpy().tolist()], pred_answer.numpy().tolist())
 
             total += num_batch
             dataset_tqdm.set_description(f"Perplexity: {perplexity_sum / total}, BLEU: {bleu_sum / total}")

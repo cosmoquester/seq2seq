@@ -66,7 +66,8 @@ def main(args: argparse.Namespace):
 
     with open(args.model_config_path) as f:
         model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
-    model.load_weights(args.model_weight_path)
+    checkpoint = tf.train.Checkpoint(model)
+    checkpoint.restore(args.model_weight_path).expect_partial()
     searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
     logger.info("Loaded weights of model")
 

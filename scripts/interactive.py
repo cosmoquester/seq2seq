@@ -45,7 +45,8 @@ def main(args: argparse.Namespace):
     # Model Initialize & Load pretrained model
     with tf.io.gfile.GFile(args.model_config_path) as f:
         model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
-    model.load_weights(args.model_path)
+    checkpoint = tf.train.Checkpoint(model)
+    checkpoint.restore(args.model_path).expect_partial()
     searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
     logger.info("Loaded weights of model")
 

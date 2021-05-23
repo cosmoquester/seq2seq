@@ -122,7 +122,8 @@ def main(args: argparse.Namespace):
 
         if args.pretrained_model_path:
             logger.info("[+] Load weights of trained model")
-            model.load_weights(args.pretrained_model_path)
+            checkpoint = tf.train.Checkpoint(model)
+            checkpoint.restore(args.pretrained_model_path).expect_partial()
 
         logger.info("[+] Compile Model")
         total_steps = (args.num_total_dataset - args.num_dev_dataset) // args.batch_size

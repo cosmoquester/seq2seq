@@ -4,3 +4,4 @@ tensorflow-serving-api
 tensorboard_plugin_profile
 tqdm
 pyyaml
+nltk
