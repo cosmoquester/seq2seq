@@ -1,4 +1,5 @@
 from functools import partial
+from typing import Callable, Tuple
 
 import tensorflow as tf
 import tensorflow_text as text
@@ -66,3 +67,25 @@ def make_train_examples(source_tokens: tf.Tensor, target_tokens: tf.Tensor):
     labels = target_tokens[1:]
 
     return (encoder_input, decoder_input), labels
+
+
+def filter_example(max_sequence_length: int) -> Callable[[tf.Tensor, tf.Tensor], tf.Tensor]:
+    @tf.function
+    def _filter(source_tokens: tf.Tensor, target_tokens: tf.Tensor) -> tf.Tensor:
+        return tf.math.logical_and(
+            tf.size(source_tokens) < max_sequence_length,
+            tf.size(target_tokens) < max_sequence_length,
+        )
+
+    return _filter
+
+
+def slice_example(max_sequence_length: int) -> Callable[[tf.Tensor, tf.Tensor], Tuple[tf.Tensor, tf.Tensor]]:
+    @tf.function
+    def _slice(source_tokens: tf.Tensor, target_tokens: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+        return (
+            source_tokens[:max_sequence_length],
+            target_tokens[:max_sequence_length],
+        )
+
+    return _slice

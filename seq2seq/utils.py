@@ -4,6 +4,7 @@ import sys
 from collections import Counter
 from typing import Iterable, Optional, Union
 
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
 
@@ -47,6 +48,13 @@ def path_join(*paths: Iterable[str]) -> str:
     return os.path.join(*paths)
 
 
+def set_mixed_precision(device: str):
+    """Set mixed precision on"""
+    mixed_type = "mixed_bfloat16" if device == "TPU" else "mixed_float16"
+    policy = tf.keras.mixed_precision.experimental.Policy(mixed_type)
+    tf.keras.mixed_precision.experimental.set_policy(policy)
+
+
 def get_device_strategy(device) -> tf.distribute.Strategy:
     """Return tensorflow device strategy"""
     # Use TPU
@@ -76,30 +84,22 @@ def get_device_strategy(device) -> tf.distribute.Strategy:
     return tf.distribute.OneDeviceStrategy("/cpu:0")
 
 
-def n_gram_precision(true_tokens, pred_tokens, n):
-    true_n_grams = []
-    pred_n_grams = []
+def sparse_categorical_crossentropy_nan_debug(y_true, y_pred):
+    pred_nan = tf.math.is_nan(y_pred)
+    if tf.math.reduce_any(pred_nan):
+        tf.print(
+            "\nWarning:",
+            "The",
+            tf.size(tf.where(pred_nan)),
+            "number of output values are Nan!\n",
+            output_stream=sys.stderr,
+        )
 
-    for i in range(len(true_tokens) - n + 1):
-        true_n_grams.append(tuple(true_tokens[i : i + n]))
-    for i in range(len(pred_tokens) - n + 1):
-        pred_n_grams.append(tuple(pred_tokens[i : i + n]))
-
-    true_n_gram_counter = Counter(true_n_grams)
-    pred_n_gram_counter = Counter(pred_n_grams)
-
-    correct = 0
-    for true_n_gram in true_n_gram_counter:
-        correct += min(pred_n_gram_counter[true_n_gram], true_n_gram_counter[true_n_gram])
-    return correct / len(true_n_grams)
-
-
-def calculat_bleu_score(true_tokens, pred_tokens):
-    n_gram_score = 1.0
-    for n in range(1, 5):
-        n_gram_score *= n_gram_precision(true_tokens, pred_tokens, n)
-    n_gram_score **= 0.25
-
-    brevity_penalty = min(1.0, len(pred_tokens) / len(true_tokens))
-
-    return n_gram_score * brevity_penalty
+    loss = tf.losses.sparse_categorical_crossentropy(y_true, y_pred, True)
+    is_nan = tf.math.is_nan(loss)
+    if tf.math.reduce_any(is_nan):
+        tf.print(
+            "\nWarning:", "The", tf.size(tf.where(is_nan)), "number of losses are Nan!\n", output_stream=sys.stderr
+        )
+        loss = tf.boolean_mask(loss, tf.logical_not(is_nan))
+    return loss

@@ -1,6 +1,7 @@
 import argparse
 import os
 import random
+import sys
 
 import tensorflow as tf
 import tensorflow_text as text
@@ -55,9 +56,7 @@ def random_string(length=16):
     return "".join([chr(token_ord) for token_ord in string_ords])
 
 
-if __name__ == "__main__":
-    args = parser.parse_args()
-
+def main(args: argparse.Namespace):
     logger = get_logger(__name__)
 
     with open(args.sp_model_path, "rb") as f:
@@ -67,7 +66,8 @@ if __name__ == "__main__":
 
     with open(args.model_config_path) as f:
         model = create_model(args.model_name, yaml.load(f, yaml.SafeLoader))
-    model.load_weights(args.model_weight_path)
+    checkpoint = tf.train.Checkpoint(model)
+    checkpoint.restore(args.model_weight_path).expect_partial()
     searcher = Searcher(model, args.max_sequence_length, bos_id, eos_id, args.pad_id)
     logger.info("Loaded weights of model")
 
@@ -105,3 +105,7 @@ if __name__ == "__main__":
             )
         )
     logger.info(f"Made warmup record and saved to {warmup_record_path}")
+
+
+if __name__ == "__main__":
+    sys.exit(main(parser.parse_args()))
