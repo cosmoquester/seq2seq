@@ -65,7 +65,7 @@ class BiRNN(Layer):
 
         forward_output, *forward_states = self.forward_rnn(inputs, mask=mask, initial_state=forward_states)
         backward_output, *backward_states = self.backward_rnn(inputs, mask=mask, initial_state=backward_states)
-        output = tf.concat([forward_output, backward_output], axis=-1)
+        output = tf.concat([forward_output, tf.reverse(backward_output, axis=[1])], axis=-1)
         return [output] + forward_states + backward_states
 
 

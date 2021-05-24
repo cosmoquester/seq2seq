@@ -14,22 +14,32 @@ from seq2seq.layer import (
 
 
 @pytest.mark.parametrize(
-    "rnn_class,units,dropout,recurrent_dropout,batch_size,sequence_length",
+    "rnn_class,units,dropout,recurrent_dropout,batch_size,sequence_length,pad_length",
     [
-        (LSTM, 128, 0.1, 0.12, 32, 110),
-        (GRU, 256, 0.8, 0.0, 63, 121),
-        (SimpleRNN, 100, 0.1234, 0.4321, 11, 1),
+        (LSTM, 128, 0.1, 0.12, 32, 110, 2),
+        (GRU, 256, 0.8, 0.0, 63, 121, 1),
+        (SimpleRNN, 100, 0.1234, 0.4321, 11, 1, 4),
     ],
 )
-def test_bi_rnn_shape(rnn_class, units, dropout, recurrent_dropout, batch_size, sequence_length):
+def test_bi_rnn_shape(rnn_class, units, dropout, recurrent_dropout, batch_size, sequence_length, pad_length):
     birnn = BiRNN(rnn_class, units, dropout, recurrent_dropout)
 
     inputs = tf.random.uniform([batch_size, sequence_length, units])
-    output, *states = birnn(inputs, tf.ones([batch_size, sequence_length], tf.bool))
+    mask = tf.cast(tf.random.normal([batch_size, sequence_length]) > 0.1, tf.int32)
+    output, *states = birnn(inputs, mask)
 
     assert len(states) % 2 == 0
     tf.debugging.assert_equal(tf.shape(output), [batch_size, sequence_length, units * 2])
     tf.debugging.assert_equal(tf.shape(states[0]), [batch_size, units])
+
+    padded_input = tf.concat([inputs, tf.random.normal([batch_size, pad_length, units])], axis=1)
+    padded_mask = tf.concat([mask, tf.zeros([batch_size, pad_length], tf.int32)], axis=1)
+    padded_output, *padded_states = birnn(padded_input, padded_mask)
+    tf.debugging.assert_equal(tf.shape(padded_output), [batch_size, sequence_length + pad_length, units * 2])
+    tf.debugging.assert_equal(tf.shape(padded_states[0]), [batch_size, units])
+
+    # Mask Result Check
+    tf.debugging.assert_equal(output, padded_output[:, :-pad_length])
 
 
 def test_bahdanau_attention_shape():
