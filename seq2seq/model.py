@@ -259,6 +259,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         cell_class = RNN_CELL_MAP[cell_type]
 
         self.pad_id = pad_id
+        self.hidden_dim = hidden_dim
 
         self.embedding = Embedding(vocab_size, hidden_dim, name="embedding")
         self.dropout = Dropout(dropout, name="dropout")
@@ -269,7 +270,6 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         self.decoder = [
             cell_class(
                 hidden_dim,
-                return_sequences=True,
                 return_state=True,
                 dropout=dropout,
                 recurrent_dropout=dropout,
@@ -294,6 +294,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         states = None
         for encoder_layer in self.encoder:
             encoder_input, *states = encoder_layer(encoder_input, mask=encoder_mask, initial_state=states)
+        encoder_output = encoder_input
 
         # Concat Forward-Backward states
         if len(states) == 2:
@@ -301,19 +302,31 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         elif len(states) == 4:
             states = (tf.concat(states[::2], axis=-1), tf.concat(states[1::2], axis=-1))
 
-        decoder_output, *states = self.decoder[0](decoder_input, mask=decoder_mask, initial_state=states)
-        decoder_mask = tf.concat([decoder_mask[:, :1], decoder_mask], axis=1)
-        for decoder_layer in self.decoder[1:]:
-            context = self.attention(states[0], encoder_input, encoder_mask)[:, tf.newaxis, :]
-            decoder_input = tf.concat([context, decoder_output], axis=1)
-            decoder_output, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
-            decoder_output = decoder_output[:, 1:, :]
+        # Use range on TPU because of issue https://github.com/tensorflow/tensorflow/issues/49469
+        if decoder_input.shape[1]:
+            token_length = decoder_input.shape[1]
+            index_iter = range(token_length)
+        else:
+            token_length = tf.shape(decoder_input)[1]
+            index_iter = tf.range(token_length)
+
+        outputs = tf.TensorArray(
+            tf.float32, size=token_length, infer_shape=False, element_shape=[None, self.hidden_dim]
+        )
+        for i in index_iter:
+            context = self.attention(states[0], encoder_output, encoder_mask)
+            decoder_input_t = tf.concat([decoder_input[:, i, :], context], axis=-1)[:, tf.newaxis, :]
+            for decoder_layer in self.decoder:
+                decoder_output_t, *states = decoder_layer(
+                    decoder_input_t, mask=decoder_mask[:, i : i + 1], initial_state=states
+                )
+            outputs = outputs.write(i, decoder_output_t)
+        decoder_output = tf.transpose(outputs.stack(), [1, 0, 2])
 
         # Get last output manually because of issue https://github.com/tensorflow/tensorflow/issues/49241
-        token_length = decoder_input.shape[1] or tf.shape(decoder_input)[1]
-        last_sequence_index = tf.math.count_nonzero(decoder_mask[:, 1:], axis=1) - 1
+        last_sequence_index = tf.math.count_nonzero(decoder_mask, axis=1) - 1
         last_sequence_output = tf.reduce_sum(
-            decoder_input * tf.one_hot(last_sequence_index, token_length)[:, :, tf.newaxis], axis=1
+            decoder_output * tf.one_hot(last_sequence_index, token_length)[:, :, tf.newaxis], axis=1
         )
 
         # [BatchSize, VocabSize]
