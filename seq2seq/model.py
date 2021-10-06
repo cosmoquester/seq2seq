@@ -100,14 +100,16 @@ class TransformerSeq2Seq(tf.keras.Model):
         decoder_input = self.embedding(decoder_tokens)
 
         # [BatchSize, SequenceLength, DimEmbedding]
-        encoder_input = self.dropout(self.pos_encode(encoder_input))
-        decoder_input = self.dropout(self.pos_encode(decoder_input))
+        encoder_input = self.dropout(self.pos_encode(encoder_input), training=training)
+        decoder_input = self.dropout(self.pos_encode(decoder_input), training=training)
 
         # [BatchSize, SequenceLength, DimEmbedding]
         for encoder_layer in self.encoder:
-            encoder_input = encoder_layer(encoder_input, encoder_attention_mask)
+            encoder_input = encoder_layer(encoder_input, encoder_attention_mask, training=training)
         for decoder_layer in self.decoder:
-            decoder_input = decoder_layer(decoder_input, encoder_input, encoder_attention_mask, decoder_attention_mask)
+            decoder_input = decoder_layer(
+                decoder_input, encoder_input, encoder_attention_mask, decoder_attention_mask, training=training
+            )
 
         # [BatchSize, VocabSize]
         output = self.dense(decoder_input[:, -1, :])
@@ -185,13 +187,15 @@ class RNNSeq2Seq(tf.keras.Model):
         decoder_mask = decoder_tokens != self.pad_id
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.dropout(self.embedding(encoder_tokens))
-        decoder_input = self.dropout(self.embedding(decoder_tokens))
+        encoder_input = self.dropout(self.embedding(encoder_tokens), training=training)
+        decoder_input = self.dropout(self.embedding(decoder_tokens), training=training)
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
         for encoder_layer in self.encoder:
-            encoder_input, *states = encoder_layer(encoder_input, mask=encoder_mask, initial_state=states)
+            encoder_input, *states = encoder_layer(
+                encoder_input, mask=encoder_mask, initial_state=states, training=training
+            )
 
         # Concat Forward-Backward states
         if len(states) == 2:
@@ -201,7 +205,9 @@ class RNNSeq2Seq(tf.keras.Model):
 
         # [BatchSize, SequenceLength, HiddenDim]
         for decoder_layer in self.decoder:
-            decoder_input, *states = decoder_layer(decoder_input, mask=decoder_mask, initial_state=states)
+            decoder_input, *states = decoder_layer(
+                decoder_input, mask=decoder_mask, initial_state=states, training=training
+            )
 
         # Get last output manually because of issue https://github.com/tensorflow/tensorflow/issues/49241
         token_length = decoder_input.shape[1] or tf.shape(decoder_input)[1]
@@ -287,13 +293,15 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
         decoder_mask = decoder_tokens != self.pad_id
 
         # [BatchSize, SequenceLength, HiddenDim]
-        encoder_input = self.dropout(self.embedding(encoder_tokens))
-        decoder_input = self.dropout(self.embedding(decoder_tokens))
+        encoder_input = self.dropout(self.embedding(encoder_tokens), training=training)
+        decoder_input = self.dropout(self.embedding(decoder_tokens), training=training)
 
         # [BatchSize, SequenceLength, HiddenDim]
         states = None
         for encoder_layer in self.encoder:
-            encoder_input, *states = encoder_layer(encoder_input, mask=encoder_mask, initial_state=states)
+            encoder_input, *states = encoder_layer(
+                encoder_input, mask=encoder_mask, initial_state=states, training=training
+            )
         encoder_output = encoder_input
 
         # Concat Forward-Backward states
@@ -318,7 +326,7 @@ class RNNSeq2SeqWithAttention(tf.keras.Model):
             decoder_input_t = tf.concat([decoder_input[:, i, :], context], axis=-1)[:, tf.newaxis, :]
             for decoder_layer in self.decoder:
                 decoder_output_t, *states = decoder_layer(
-                    decoder_input_t, mask=decoder_mask[:, i : i + 1], initial_state=states
+                    decoder_input_t, mask=decoder_mask[:, i : i + 1], initial_state=states, training=training
                 )
             outputs = outputs.write(i, decoder_output_t)
         decoder_output = tf.transpose(outputs.stack(), [1, 0, 2])

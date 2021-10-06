@@ -54,7 +54,9 @@ class BiRNN(Layer):
             name="backward_rnn",
         )
 
-    def call(self, inputs: tf.Tensor, mask: tf.Tensor, initial_state: Optional[tf.Tensor] = None) -> List:
+    def call(
+        self, inputs: tf.Tensor, mask: tf.Tensor, initial_state: Optional[tf.Tensor] = None, training: bool = False
+    ) -> List:
         if initial_state is None:
             forward_states = None
             backward_states = None
@@ -63,8 +65,12 @@ class BiRNN(Layer):
             forward_states = initial_state[: num_states // 2]
             backward_states = initial_state[num_states // 2 :]
 
-        forward_output, *forward_states = self.forward_rnn(inputs, mask=mask, initial_state=forward_states)
-        backward_output, *backward_states = self.backward_rnn(inputs, mask=mask, initial_state=backward_states)
+        forward_output, *forward_states = self.forward_rnn(
+            inputs, mask=mask, initial_state=forward_states, training=training
+        )
+        backward_output, *backward_states = self.backward_rnn(
+            inputs, mask=mask, initial_state=backward_states, training=training
+        )
         output = tf.concat([forward_output, tf.reverse(backward_output, axis=[1])], axis=-1)
         return [output] + forward_states + backward_states
 
@@ -256,14 +262,16 @@ class TransformerEncoderLayer(Layer):
         self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
         self.dropout = Dropout(dropout, name="dropout")
 
-    def call(self, input_embedding, mask=None):
+    def call(self, input_embedding, mask=None, training: bool = False):
         # [BatchSize, SequenceLength, DimEmbedding]
         attention_output = self.multihead_attention(input_embedding, input_embedding, input_embedding, mask)
-        normalized_output = self.attention_layernorm(input_embedding + self.dropout(attention_output))
+        normalized_output = self.attention_layernorm(
+            input_embedding + self.dropout(attention_output, training=training)
+        )
 
         # [BatchSize, SequenceLength, DimEmbedding]
         output = self.feedfoward_out(self.feedfoward_in(normalized_output))
-        output = self.feedforward_layernorm(normalized_output + self.dropout(output))
+        output = self.feedforward_layernorm(normalized_output + self.dropout(output, training=training))
 
         return output
 
@@ -301,19 +309,23 @@ class TransformerDecoderLayer(Layer):
         self.feedforward_layernorm = LayerNormalization(name="feedforward_layernorm")
         self.dropout = Dropout(dropout, name="dropout")
 
-    def call(self, input_embedding, encoder_output, encoder_mask=None, decoder_mask=None):
+    def call(self, input_embedding, encoder_output, encoder_mask=None, decoder_mask=None, training: bool = False):
         # [BatchSize, SequenceLength, DimEmbedding]
         attention_output = self.self_attention(input_embedding, input_embedding, input_embedding, decoder_mask)
-        normalized_output = self.attention_layernorm(input_embedding + self.dropout(attention_output))
+        normalized_output = self.attention_layernorm(
+            input_embedding + self.dropout(attention_output, training=training)
+        )
 
         # [BatchSize, SequenceLength, DimEmbedding]
         attention_output = self.encoder_decoder_attention(
             normalized_output, encoder_output, encoder_output, encoder_mask
         )
-        normalized_output = self.encoder_decoder_layernorm(normalized_output + self.dropout(attention_output))
+        normalized_output = self.encoder_decoder_layernorm(
+            normalized_output + self.dropout(attention_output, training=training)
+        )
 
         # [BatchSize, SequenceLength, DimEmbedding]
         output = self.feedfoward_out(self.feedfoward_in(normalized_output))
-        output = self.feedforward_layernorm(normalized_output + self.dropout(output))
+        output = self.feedforward_layernorm(normalized_output + self.dropout(output, training=training))
 
         return output
